@@ -1,0 +1,122 @@
+<view class="page-shell">
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    正在准备家庭邀请
+  </view>
+
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+  </view>
+
+  <view wx:elif="{{mode === 'create'}}">
+    <view class="eyebrow">邀请家人</view>
+    <view class="page-title">{{family.name}}</view>
+    <view class="page-description">
+      邀请只能使用一次，七天后自动失效。新的邀请不会影响旧邀请。
+    </view>
+
+    <button
+      wx:if="{{!createdInvite}}"
+      id="create-invite-button"
+      class="primary-button"
+      loading="{{busy}}"
+      disabled="{{busy}}"
+      bindtap="onCreateInvite"
+    >
+      生成一次性邀请
+    </button>
+
+    <view wx:else class="invite-card">
+      <view class="invite-card__label">6 位邀请码</view>
+      <view id="created-short-code" class="invite-card__code">
+        {{createdInvite.shortCode}}
+      </view>
+      <view class="invite-card__expiry">
+        有效期至 {{createdInvite.expiresAtText}}
+      </view>
+      <button class="primary-button" bindtap="onCopyShortCode">
+        复制邀请码
+      </button>
+      <button class="secondary-button" open-type="share">
+        发送微信邀请
+      </button>
+      <button
+        id="revoke-invite-button"
+        class="danger-text-button"
+        loading="{{busy}}"
+        disabled="{{busy}}"
+        bindtap="onRevokeInvite"
+      >
+        撤销这份邀请
+      </button>
+    </view>
+  </view>
+
+  <view wx:else>
+    <view class="eyebrow">加入家庭</view>
+    <view class="page-title">和家人一起管理健康事项</view>
+
+    <view wx:if="{{!invitePreview}}" class="join-card">
+      <view class="field-label">输入 6 位邀请码</view>
+      <input
+        id="invite-code-input"
+        class="code-input"
+        value="{{shortCode}}"
+        maxlength="6"
+        placeholder="例如 AB12CD"
+        bindinput="onShortCodeInput"
+      />
+      <button
+        id="resolve-invite-button"
+        class="primary-button"
+        loading="{{busy}}"
+        disabled="{{busy}}"
+        bindtap="onResolveShortCode"
+      >
+        查看邀请
+      </button>
+    </view>
+
+    <view wx:else class="join-card">
+      <view class="invite-preview__label">你将加入</view>
+      <view id="invite-family-name" class="invite-preview__name">
+        {{invitePreview.familyName}}
+      </view>
+      <view class="invite-preview__from">
+        邀请人：{{invitePreview.invitedByDisplayName}}
+      </view>
+
+      <view class="permission-row">
+        <view class="permission-row__content">
+          <view class="permission-row__title">允许家庭代管健康档案</view>
+          <view class="permission-row__description">
+            默认开启；加入后仍可在档案设置中关闭。
+          </view>
+        </view>
+        <switch
+          id="profile-management-switch"
+          color="#2f765e"
+          checked="{{profileManagementAllowed}}"
+          bindchange="onProfileManagementChange"
+        />
+      </view>
+
+      <button
+        id="confirm-join-button"
+        class="primary-button"
+        loading="{{busy}}"
+        disabled="{{busy}}"
+        bindtap="onJoinFamily"
+      >
+        确认加入
+      </button>
+      <button class="secondary-button" bindtap="onChangeInviteCode">
+        更换邀请码
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{errorMessage && status !== 'error'}}" class="error-message">
+    {{errorMessage}}
+  </view>
+</view>

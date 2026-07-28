@@ -211,6 +211,403 @@ test("家庭列表不会返回已经失效的成员关系", async () => {
   assert.deepEqual(listed.data.families, []);
 });
 
+test("家庭管理员可以创建一份有有效期的单次邀请", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = ["user-1", "family-1", "membership-1", "invite-1"];
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: "invite-admin-openid",
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+    createInviteCredentials: () => ({
+      token: "raw-token-1",
+      shortCode: "AB12CD",
+      tokenHash: "token-hash-1",
+      shortCodeHash: "short-code-hash-1",
+    }),
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-invite",
+    data: {
+      name: "邀请测试家庭",
+    },
+  });
+
+  const result = await api.handle({
+    action: "createInvite",
+    requestId: "req-create-invite",
+    data: {
+      familyId: family.data.family.id,
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    requestId: "req-create-invite",
+    data: {
+      invite: {
+        id: "invite-1",
+        token: "raw-token-1",
+        shortCode: "AB12CD",
+        expiresAt: "2026-08-04T09:00:00.000Z",
+      },
+    },
+  });
+});
+
+test("普通家庭成员不能创建邀请", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = ["user-1", "family-1", "membership-1"];
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: "invite-member-openid",
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-member",
+    data: {
+      name: "普通成员家庭",
+    },
+  });
+  await familyStore.setMembershipRoleForTest("membership-1", "member");
+
+  const result = await api.handle({
+    action: "createInvite",
+    requestId: "req-member-create-invite",
+    data: {
+      familyId: family.data.family.id,
+      role: "admin",
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    requestId: "req-member-create-invite",
+    error: {
+      code: "ADMIN_REQUIRED",
+      message: "只有家庭管理员可以创建邀请",
+    },
+  });
+});
+
+test("解析有效邀请只返回加入页需要的最小信息且不消耗邀请", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = ["user-1", "family-1", "membership-1", "invite-1"];
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: "invite-resolver-openid",
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+    createInviteCredentials: () => ({
+      token: "raw-token-1",
+      shortCode: "AB12CD",
+      tokenHash: "token-hash-1",
+      shortCodeHash: "short-code-hash-1",
+    }),
+    hashInviteToken: (token) =>
+      token === "raw-token-1" ? "token-hash-1" : "unknown-token-hash",
+    hashInviteShortCode: (shortCode) =>
+      shortCode.toUpperCase() === "AB12CD"
+        ? "short-code-hash-1"
+        : "unknown-short-code-hash",
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-resolve",
+    data: {
+      name: "只展示名称的家庭",
+    },
+  });
+  await api.handle({
+    action: "createInvite",
+    requestId: "req-invite-for-resolve",
+    data: {
+      familyId: family.data.family.id,
+    },
+  });
+
+  const first = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-invite-first",
+    data: {
+      token: "raw-token-1",
+    },
+  });
+  const second = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-invite-second",
+    data: {
+      token: "raw-token-1",
+    },
+  });
+  const resolvedByShortCode = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-by-short-code",
+    data: {
+      shortCode: "ab12cd",
+    },
+  });
+
+  assert.deepEqual(first.data, {
+    invite: {
+      familyName: "只展示名称的家庭",
+      invitedByDisplayName: "微信用户",
+      expiresAt: "2026-08-04T09:00:00.000Z",
+    },
+  });
+  assert.deepEqual(second.data, first.data);
+  assert.deepEqual(resolvedByShortCode.data, first.data);
+});
+
+test("使用邀请会建立唯一成员关系并在同一事务消费邀请", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = [
+    "creator-user",
+    "family-1",
+    "creator-membership",
+    "invite-1",
+    "invitee-user",
+    "invitee-membership",
+  ];
+  let currentOpenId = "creator-openid";
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: currentOpenId,
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+    createInviteCredentials: () => ({
+      token: "join-token-1",
+      shortCode: "EF34GH",
+      tokenHash: "join-token-hash-1",
+      shortCodeHash: "join-short-code-hash-1",
+    }),
+    hashInviteToken: (token) =>
+      token === "join-token-1"
+        ? "join-token-hash-1"
+        : "unknown-token-hash",
+    hashInviteShortCode: (shortCode) =>
+      shortCode.toUpperCase() === "EF34GH"
+        ? "join-short-code-hash-1"
+        : "unknown-short-code-hash",
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-join",
+    data: {
+      name: "一起加入的家庭",
+    },
+  });
+  await api.handle({
+    action: "createInvite",
+    requestId: "req-invite-for-join",
+    data: {
+      familyId: family.data.family.id,
+    },
+  });
+
+  currentOpenId = "invitee-openid";
+  const joined = await api.handle({
+    action: "joinFamily",
+    requestId: "req-join-family",
+    data: {
+      shortCode: "ef34gh",
+      profileManagementAllowed: true,
+    },
+  });
+  const joinedAgain = await api.handle({
+    action: "joinFamily",
+    requestId: "req-join-family-again",
+    data: {
+      shortCode: "EF34GH",
+      profileManagementAllowed: true,
+    },
+  });
+  const bootstrapped = await api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-after-join",
+  });
+  const resolvedAfterUse = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-after-use",
+    data: {
+      token: "join-token-1",
+    },
+  });
+
+  assert.deepEqual(joined, {
+    ok: true,
+    requestId: "req-join-family",
+    data: {
+      family: {
+        id: "family-1",
+        name: "一起加入的家庭",
+        role: "member",
+      },
+      profileManagementAllowed: true,
+    },
+  });
+  assert.deepEqual(bootstrapped.data.families, [joined.data.family]);
+  assert.deepEqual(joinedAgain.data, joined.data);
+  assert.equal(resolvedAfterUse.ok, false);
+  assert.equal(resolvedAfterUse.error.code, "INVITE_UNAVAILABLE");
+});
+
+test("加入家庭必须明确提交档案代管选择", async () => {
+  const api = createFamilyApi();
+
+  const result = await api.handle({
+    action: "joinFamily",
+    requestId: "req-join-without-profile-choice",
+    data: {
+      token: "some-token",
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    requestId: "req-join-without-profile-choice",
+    error: {
+      code: "INVALID_ARGUMENT",
+      message: "请明确选择是否允许家庭成员代管档案",
+    },
+  });
+});
+
+test("管理员撤销邀请后同一令牌立即不可用", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = ["user-1", "family-1", "membership-1", "invite-1"];
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: "invite-revoker-openid",
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+    createInviteCredentials: () => ({
+      token: "revoke-token-1",
+      shortCode: "JK56LM",
+      tokenHash: "revoke-token-hash-1",
+      shortCodeHash: "revoke-short-code-hash-1",
+    }),
+    hashInviteToken: (token) =>
+      token === "revoke-token-1"
+        ? "revoke-token-hash-1"
+        : "unknown-token-hash",
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-revoke",
+    data: {
+      name: "撤销邀请家庭",
+    },
+  });
+  const created = await api.handle({
+    action: "createInvite",
+    requestId: "req-invite-for-revoke",
+    data: {
+      familyId: family.data.family.id,
+    },
+  });
+
+  const revoked = await api.handle({
+    action: "revokeInvite",
+    requestId: "req-revoke-invite",
+    data: {
+      inviteId: created.data.invite.id,
+    },
+  });
+  const resolved = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-revoked",
+    data: {
+      token: "revoke-token-1",
+    },
+  });
+
+  assert.deepEqual(revoked, {
+    ok: true,
+    requestId: "req-revoke-invite",
+    data: {
+      invite: {
+        id: "invite-1",
+        status: "revoked",
+      },
+    },
+  });
+  assert.equal(resolved.ok, false);
+  assert.equal(resolved.error.code, "INVITE_UNAVAILABLE");
+});
+
+test("现有有效成员使用同家庭邀请时不会改变角色或消耗邀请", async () => {
+  const familyStore = createInMemoryFamilyStore();
+  const ids = ["admin-user", "family-1", "admin-membership", "invite-1"];
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: "existing-admin-openid",
+    }),
+    familyStore,
+    createId: () => ids.shift(),
+    now: () => new Date("2026-07-28T09:00:00.000Z"),
+    createInviteCredentials: () => ({
+      token: "self-join-token",
+      shortCode: "NP78QR",
+      tokenHash: "self-join-token-hash",
+      shortCodeHash: "self-join-short-code-hash",
+    }),
+    hashInviteToken: () => "self-join-token-hash",
+  });
+  const family = await api.handle({
+    action: "createFamily",
+    requestId: "req-family-for-self-join",
+    data: {
+      name: "不应自我降级的家庭",
+    },
+  });
+  await api.handle({
+    action: "createInvite",
+    requestId: "req-invite-for-self-join",
+    data: {
+      familyId: family.data.family.id,
+    },
+  });
+
+  const joined = await api.handle({
+    action: "joinFamily",
+    requestId: "req-self-join",
+    data: {
+      token: "self-join-token",
+      profileManagementAllowed: true,
+    },
+  });
+  const bootstrapped = await api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-after-self-join",
+  });
+  const inviteStillAvailable = await api.handle({
+    action: "resolveInvite",
+    requestId: "req-resolve-after-self-join",
+    data: {
+      token: "self-join-token",
+    },
+  });
+
+  assert.equal(joined.ok, false);
+  assert.equal(joined.error.code, "ALREADY_MEMBER");
+  assert.equal(bootstrapped.data.families[0].role, "admin");
+  assert.equal(inviteStillAvailable.ok, true);
+});
+
 test("内部异常只返回安全错误，不暴露异常信息", async () => {
   const api = createFamilyApi({
     getCallerIdentity: async () => {

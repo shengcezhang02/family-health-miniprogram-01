@@ -73,6 +73,20 @@
         </view>
         <view class="choice-card__arrow">›</view>
       </button>
+
+      <button
+        id="join-family-button"
+        class="choice-card choice-card--quiet"
+        bindtap="onJoinFamily"
+        hover-class="choice-card--pressed"
+      >
+        <view class="choice-card__icon choice-card__icon--quiet">码</view>
+        <view class="choice-card__body">
+          <view class="choice-card__title">输入邀请码</view>
+          <view class="choice-card__description">加入家人已经建立的空间</view>
+        </view>
+        <view class="choice-card__arrow">›</view>
+      </button>
     </view>
 
     <view wx:else class="family-form">
@@ -122,6 +136,47 @@
       <view class="empty-card__description">
         当前阶段已经完成。健康档案、记录和提醒将在后续版本逐步加入。
       </view>
+    </view>
+
+    <view class="family-actions">
+      <button
+        wx:if="{{currentFamily.role === 'admin'}}"
+        id="invite-family-button"
+        class="family-action family-action--primary"
+        bindtap="onInviteFamily"
+      >
+        邀请家人
+      </button>
+      <button
+        id="join-another-family-button"
+        class="family-action"
+        bindtap="onJoinFamily"
+      >
+        输入邀请码
+      </button>
+      <button
+        wx:if="{{families.length > 1}}"
+        id="switch-family-button"
+        class="family-action"
+        bindtap="onToggleFamilySwitcher"
+      >
+        切换家庭
+      </button>
+    </view>
+
+    <view wx:if="{{showFamilySwitcher}}" class="family-switcher">
+      <button
+        wx:for="{{families}}"
+        wx:key="id"
+        class="family-switcher__item"
+        data-family-id="{{item.id}}"
+        bindtap="onSelectFamily"
+      >
+        <view>{{item.name}}</view>
+        <view class="family-switcher__role">
+          {{item.role === "admin" ? "管理员" : "成员"}}
+        </view>
+      </button>
     </view>
   </view>
 

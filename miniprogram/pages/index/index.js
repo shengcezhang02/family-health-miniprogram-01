@@ -17,6 +17,8 @@ Page({
     familyName: "",
     formError: "",
     creating: false,
+    families: [],
+    showFamilySwitcher: false,
   },
 
   onLoad() {
@@ -95,6 +97,7 @@ Page({
           ? "已进入上次使用的家庭空间"
           : "环境已就绪，可以创建第一个家庭空间",
         currentFamily,
+        families: data.families,
       });
     } catch (error) {
       console.error("bootstrap failed", error);
@@ -103,6 +106,40 @@ Page({
         message: error.message || "暂时无法连接服务，请检查网络后重试",
       });
     }
+  },
+
+  onInviteFamily() {
+    wx.navigateTo({
+      url: `/pages/invite/invite?mode=create&familyId=${this.data.currentFamily.id}`,
+    });
+  },
+
+  onJoinFamily() {
+    wx.navigateTo({
+      url: "/pages/invite/invite?mode=join",
+    });
+  },
+
+  onToggleFamilySwitcher() {
+    this.setData({
+      showFamilySwitcher: !this.data.showFamilySwitcher,
+    });
+  },
+
+  onSelectFamily(event) {
+    const selected = this.data.families.find(
+      (family) => family.id === event.currentTarget.dataset.familyId,
+    );
+
+    if (!selected) {
+      return;
+    }
+
+    this.setData({
+      currentFamily: currentFamilyPreference.select(selected),
+      showFamilySwitcher: false,
+      message: "已切换家庭空间",
+    });
   },
 
   async createSpace(action, data) {
@@ -121,6 +158,7 @@ Page({
 
       this.setData({
         currentFamily,
+        families: [currentFamily],
         showFamilyForm: false,
         familyName: "",
         message: "家庭空间已建立",
@@ -137,24 +175,6 @@ Page({
   },
 
   async callFamilyApi(action, data) {
-    const response = await wx.cloud.callFunction({
-      name: "family-api",
-      data: {
-        action,
-        requestId: this.createRequestId(action),
-        data,
-      },
-    });
-    const result = response.result;
-
-    if (!result?.ok) {
-      throw new Error(result?.error?.message || "服务连接失败");
-    }
-
-    return result.data;
-  },
-
-  createRequestId(action) {
-    return `${action}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return getApp().callFamilyApi(action, data);
   },
 });

@@ -1,0 +1,51 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "token_hash_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "tokenHash",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "short_code_hash_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "shortCodeHash",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "family_status_expires",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "status",
+            "Direction": "1"
+          },
+          {
+            "Name": "expiresAt",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}
