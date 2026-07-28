@@ -15,7 +15,21 @@
   <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
     <view class="state-card__title">暂时无法打开</view>
     <view class="state-card__description">{{errorMessage}}</view>
-    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+    <button
+      wx:if="{{showGoHome}}"
+      id="profile-go-home-button"
+      class="secondary-button"
+      bindtap="onGoHome"
+    >
+      返回首页
+    </button>
+    <button
+      wx:else
+      class="secondary-button"
+      bindtap="onRetry"
+    >
+      重新加载
+    </button>
   </view>
 
   <view wx:else>

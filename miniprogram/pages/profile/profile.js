@@ -1,4 +1,13 @@
 const app = getApp();
+const {
+  createProfilePageLoader,
+} = require("../../services/profile-page-loader");
+
+const profilePageLoader = createProfilePageLoader({
+  bootstrapFamily: () => app.callFamilyApi("bootstrap"),
+  listFamilyMembers: ({ familyId }) =>
+    app.callProfileApi("listFamilyMembers", { familyId }),
+});
 
 const DIABETES_OPTIONS = [
   { value: "none", label: "未确诊" },
@@ -51,6 +60,7 @@ Page({
     updatingPermission: false,
     message: "",
     errorMessage: "",
+    showGoHome: false,
   },
 
   onLoad(options) {
@@ -70,11 +80,18 @@ Page({
     this.loadMembers();
   },
 
+  onGoHome() {
+    wx.reLaunch({
+      url: "/pages/index/index",
+    });
+  },
+
   async loadMembers() {
     if (!this.data.familyId) {
       this.setData({
         status: "error",
         errorMessage: "家庭信息已失效，请返回首页重试",
+        showGoHome: true,
       });
       return;
     }
@@ -83,18 +100,18 @@ Page({
       status: "loading",
       errorMessage: "",
       message: "",
+      showGoHome: false,
     });
 
     try {
-      const result = await app.callProfileApi("listFamilyMembers", {
-        familyId: this.data.familyId,
-      });
+      const result = await profilePageLoader.load(this.data.familyId);
       const selectedMemberIndex = Math.max(
         result.members.findIndex((member) => member.isSelf),
         0,
       );
 
       this.setData({
+        familyName: result.family.name,
         members: result.members,
         selectedMemberIndex,
       });
@@ -103,6 +120,7 @@ Page({
       this.setData({
         status: "error",
         errorMessage: error.message || "暂时无法加载健康档案",
+        showGoHome: error.code === "FAMILY_ACCESS_DENIED",
       });
     }
   },
