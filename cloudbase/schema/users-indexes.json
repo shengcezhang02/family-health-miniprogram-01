@@ -1,0 +1,17 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "wechat_openid_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "wechatOpenId",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}

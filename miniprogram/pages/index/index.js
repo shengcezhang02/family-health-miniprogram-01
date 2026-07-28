@@ -1,7 +1,22 @@
+const {
+  createCurrentFamilyPreference,
+} = require("../../services/current-family-preference");
+
+const currentFamilyPreference = createCurrentFamilyPreference({
+  get: (key) => wx.getStorageSync(key),
+  set: (key, value) => wx.setStorageSync(key, value),
+  remove: (key) => wx.removeStorageSync(key),
+});
+
 Page({
   data: {
     status: "loading",
     message: "正在连接家庭健康服务",
+    currentFamily: null,
+    showFamilyForm: false,
+    familyName: "",
+    formError: "",
+    creating: false,
   },
 
   onLoad() {
@@ -12,10 +27,54 @@ Page({
     this.bootstrap();
   },
 
+  onShowFamilyForm() {
+    this.setData({
+      showFamilyForm: true,
+      formError: "",
+    });
+  },
+
+  onHideFamilyForm() {
+    if (this.data.creating) {
+      return;
+    }
+
+    this.setData({
+      showFamilyForm: false,
+      familyName: "",
+      formError: "",
+    });
+  },
+
+  onFamilyNameInput(event) {
+    this.setData({
+      familyName: event.detail.value,
+      formError: "",
+    });
+  },
+
+  async onCreateFamily() {
+    const name = this.data.familyName.trim();
+
+    if (!name) {
+      this.setData({
+        formError: "请先给家庭起一个名字",
+      });
+      return;
+    }
+
+    await this.createSpace("createFamily", { name });
+  },
+
+  async onCreatePersonalSpace() {
+    await this.createSpace("createPersonalSpace");
+  },
+
   async bootstrap() {
     this.setData({
       status: "loading",
       message: "正在连接家庭健康服务",
+      formError: "",
     });
 
     if (!wx.cloud) {
@@ -27,32 +86,75 @@ Page({
     }
 
     try {
-      const response = await wx.cloud.callFunction({
-        name: "family-api",
-        data: {
-          action: "bootstrap",
-          requestId: this.createRequestId(),
-        },
-      });
-
-      if (!response.result?.ok) {
-        throw new Error(response.result?.error?.message || "服务连接失败");
-      }
+      const data = await this.callFamilyApi("bootstrap");
+      const currentFamily = currentFamilyPreference.resolve(data.families);
 
       this.setData({
         status: "ready",
-        message: "云端连接正常，可以开始建立家庭健康空间",
+        message: currentFamily
+          ? "已进入上次使用的家庭空间"
+          : "环境已就绪，可以创建第一个家庭空间",
+        currentFamily,
       });
     } catch (error) {
       console.error("bootstrap failed", error);
       this.setData({
         status: "error",
-        message: "暂时无法连接服务，请检查网络后重试",
+        message: error.message || "暂时无法连接服务，请检查网络后重试",
       });
     }
   },
 
-  createRequestId() {
-    return `bootstrap-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  async createSpace(action, data) {
+    if (this.data.creating) {
+      return;
+    }
+
+    this.setData({
+      creating: true,
+      formError: "",
+    });
+
+    try {
+      const result = await this.callFamilyApi(action, data);
+      const currentFamily = currentFamilyPreference.select(result.family);
+
+      this.setData({
+        currentFamily,
+        showFamilyForm: false,
+        familyName: "",
+        message: "家庭空间已建立",
+      });
+    } catch (error) {
+      this.setData({
+        formError: error.message || "创建失败，请稍后重试",
+      });
+    } finally {
+      this.setData({
+        creating: false,
+      });
+    }
+  },
+
+  async callFamilyApi(action, data) {
+    const response = await wx.cloud.callFunction({
+      name: "family-api",
+      data: {
+        action,
+        requestId: this.createRequestId(action),
+        data,
+      },
+    });
+    const result = response.result;
+
+    if (!result?.ok) {
+      throw new Error(result?.error?.message || "服务连接失败");
+    }
+
+    return result.data;
+  },
+
+  createRequestId(action) {
+    return `${action}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   },
 });

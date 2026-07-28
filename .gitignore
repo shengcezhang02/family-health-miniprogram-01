@@ -4,4 +4,5 @@ coverage/
 .DS_Store
 Thumbs.db
 project.private.config.json
+miniprogram/envList.js
 *.log

@@ -7,36 +7,123 @@
     </view>
   </view>
 
-  <view class="hero">
-    <view class="hero__eyebrow">家庭健康空间</view>
-    <view class="hero__title">记录、提醒与陪伴，都更清楚一点</view>
-    <view class="hero__description">
-      共同记录家人的健康数据，安排提醒，并在明确授权后代管健康档案。
-    </view>
-  </view>
-
-  <view class="status-card status-card--{{status}}">
-    <view class="status-card__indicator"></view>
-    <view class="status-card__content">
-      <view class="status-card__title">
-        {{status === "loading" ? "正在准备" : status === "ready" ? "环境已就绪" : "连接遇到问题"}}
+  <view wx:if="{{status !== 'ready'}}" class="connection-panel">
+    <view class="hero">
+      <view class="hero__eyebrow">家庭健康空间</view>
+      <view class="hero__title">记录、提醒与陪伴，都更清楚一点</view>
+      <view class="hero__description">
+        共同记录家人的健康数据，安排提醒，并在明确授权后代管健康档案。
       </view>
-      <view class="status-card__message">{{message}}</view>
+    </view>
+
+    <view class="status-card status-card--{{status}}">
+      <view class="status-card__indicator"></view>
+      <view class="status-card__content">
+        <view id="status-title" class="status-card__title">
+          {{status === "loading" ? "正在准备" : "连接遇到问题"}}
+        </view>
+        <view class="status-card__message">{{message}}</view>
+      </view>
+    </view>
+
+    <button
+      wx:if="{{status === 'error'}}"
+      class="primary-button"
+      bindtap="onRetry"
+      hover-class="button--pressed"
+    >
+      重新加载
+    </button>
+  </view>
+
+  <view wx:elif="{{!currentFamily}}" class="onboarding">
+    <view class="onboarding__eyebrow">环境已就绪</view>
+    <view class="onboarding__title">先建立一个健康空间</view>
+    <view class="onboarding__description">
+      家庭空间适合和家人一起使用；个人空间适合先从自己的健康记录开始。
+    </view>
+
+    <view wx:if="{{!showFamilyForm}}" class="choice-list">
+      <button
+        id="choose-family-button"
+        class="choice-card"
+        bindtap="onShowFamilyForm"
+        hover-class="choice-card--pressed"
+      >
+        <view class="choice-card__icon">家</view>
+        <view class="choice-card__body">
+          <view class="choice-card__title">创建家庭</view>
+          <view class="choice-card__description">邀请家人一起记录和提醒</view>
+        </view>
+        <view class="choice-card__arrow">›</view>
+      </button>
+
+      <button
+        id="create-personal-button"
+        class="choice-card choice-card--quiet"
+        loading="{{creating}}"
+        disabled="{{creating}}"
+        bindtap="onCreatePersonalSpace"
+        hover-class="choice-card--pressed"
+      >
+        <view class="choice-card__icon choice-card__icon--quiet">我</view>
+        <view class="choice-card__body">
+          <view class="choice-card__title">创建个人空间</view>
+          <view class="choice-card__description">先管理自己的健康事项</view>
+        </view>
+        <view class="choice-card__arrow">›</view>
+      </button>
+    </view>
+
+    <view wx:else class="family-form">
+      <view class="family-form__label">家庭名称</view>
+      <input
+        id="family-name-input"
+        class="family-form__input"
+        value="{{familyName}}"
+        maxlength="40"
+        placeholder="例如：我们家"
+        focus
+        bindinput="onFamilyNameInput"
+      />
+      <view wx:if="{{formError}}" class="form-error">{{formError}}</view>
+      <button
+        id="submit-family-button"
+        class="primary-button"
+        loading="{{creating}}"
+        disabled="{{creating}}"
+        bindtap="onCreateFamily"
+        hover-class="button--pressed"
+      >
+        建立家庭空间
+      </button>
+      <button
+        class="text-button"
+        disabled="{{creating}}"
+        bindtap="onHideFamilyForm"
+      >
+        返回选择
+      </button>
     </view>
   </view>
 
-  <button
-    wx:if="{{status === 'error'}}"
-    class="retry-button"
-    bindtap="onRetry"
-    hover-class="retry-button--pressed"
-  >
-    重新加载
-  </button>
+  <view wx:else class="family-home">
+    <view class="family-home__eyebrow">当前家庭</view>
+    <view id="current-family-name" class="family-home__title">
+      {{currentFamily.name}}
+    </view>
+    <view class="role-badge">
+      {{currentFamily.role === "admin" ? "管理员" : "家庭成员"}}
+    </view>
 
-  <view wx:if="{{status === 'ready'}}" class="next-step">
-    下一步：创建第一个家庭
+    <view class="empty-card">
+      <view class="empty-card__icon">✓</view>
+      <view class="empty-card__title">家庭空间已经准备好</view>
+      <view class="empty-card__description">
+        当前阶段已经完成。健康档案、记录和提醒将在后续版本逐步加入。
+      </view>
+    </view>
   </view>
 
-  <view class="privacy-note">健康数据将通过云端权限校验，不直接保存在本机。</view>
+  <view class="privacy-note">健康数据通过云端权限校验，本机只保存当前家庭的编号。</view>
 </view>

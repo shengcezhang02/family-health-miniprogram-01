@@ -1,0 +1,38 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "family_user_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "userId",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "user_status",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "userId",
+            "Direction": "1"
+          },
+          {
+            "Name": "status",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}

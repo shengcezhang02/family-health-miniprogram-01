@@ -28,6 +28,7 @@
 }
 
 .brand__title {
+  color: #173b2f;
   font-size: 34rpx;
   font-weight: 700;
   letter-spacing: 1rpx;
@@ -43,7 +44,9 @@
   margin-top: 92rpx;
 }
 
-.hero__eyebrow {
+.hero__eyebrow,
+.onboarding__eyebrow,
+.family-home__eyebrow {
   color: #2f765e;
   font-size: 24rpx;
   font-weight: 700;
@@ -59,7 +62,8 @@
   line-height: 1.24;
 }
 
-.hero__description {
+.hero__description,
+.onboarding__description {
   max-width: 620rpx;
   margin-top: 28rpx;
   color: #60776f;
@@ -88,11 +92,6 @@
   box-shadow: 0 0 0 10rpx rgba(217, 164, 65, 0.14);
 }
 
-.status-card--ready .status-card__indicator {
-  background: #3f9b76;
-  box-shadow: 0 0 0 10rpx rgba(63, 155, 118, 0.14);
-}
-
 .status-card--error .status-card__indicator {
   background: #c65e59;
   box-shadow: 0 0 0 10rpx rgba(198, 94, 89, 0.14);
@@ -115,30 +114,196 @@
   line-height: 1.6;
 }
 
-.retry-button {
+.onboarding,
+.family-home {
+  margin-top: 92rpx;
+}
+
+.onboarding__title,
+.family-home__title {
+  margin-top: 20rpx;
+  color: #12392c;
+  font-size: 52rpx;
+  font-weight: 760;
+  line-height: 1.28;
+}
+
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  margin-top: 56rpx;
+}
+
+.choice-card {
+  display: flex;
+  width: 100%;
+  min-height: 154rpx;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 24rpx;
+  padding: 28rpx;
+  border: 0;
+  border-radius: 28rpx;
+  color: #173b2f;
+  text-align: left;
+  background: #ffffff;
+  box-shadow: 0 18rpx 54rpx rgba(45, 86, 69, 0.09);
+}
+
+.choice-card::after,
+.primary-button::after,
+.text-button::after {
+  border: 0;
+}
+
+.choice-card--quiet {
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: none;
+}
+
+.choice-card--pressed,
+.button--pressed {
+  opacity: 0.82;
+}
+
+.choice-card__icon {
+  display: flex;
+  width: 76rpx;
+  height: 76rpx;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24rpx;
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 700;
+  background: #2f765e;
+}
+
+.choice-card__icon--quiet {
+  color: #2f765e;
+  background: #dfeee7;
+}
+
+.choice-card__body {
+  flex: 1;
+}
+
+.choice-card__title {
+  font-size: 31rpx;
+  font-weight: 700;
+}
+
+.choice-card__description {
+  margin-top: 6rpx;
+  color: #70857d;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.choice-card__arrow {
+  color: #8da098;
+  font-size: 48rpx;
+  font-weight: 300;
+}
+
+.family-form {
+  margin-top: 56rpx;
+  padding: 34rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18rpx 54rpx rgba(45, 86, 69, 0.09);
+}
+
+.family-form__label {
+  color: #244c3e;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.family-form__input {
+  height: 92rpx;
+  box-sizing: border-box;
+  margin-top: 18rpx;
+  padding: 0 24rpx;
+  border: 2rpx solid #dbe8e2;
+  border-radius: 20rpx;
+  color: #173b2f;
+  font-size: 30rpx;
+  background: #ffffff;
+}
+
+.form-error {
+  margin-top: 14rpx;
+  color: #b34e49;
+  font-size: 24rpx;
+}
+
+.primary-button {
   margin-top: 28rpx;
   border: 0;
-  border-radius: 24rpx;
+  border-radius: 22rpx;
   color: #ffffff;
   font-size: 28rpx;
   font-weight: 700;
   background: #2f765e;
 }
 
-.retry-button::after {
+.text-button {
+  margin-top: 14rpx;
   border: 0;
-}
-
-.retry-button--pressed {
-  opacity: 0.86;
-}
-
-.next-step {
-  margin-top: 30rpx;
-  color: #2f765e;
+  color: #60776f;
   font-size: 26rpx;
-  font-weight: 650;
+  background: transparent;
+}
+
+.role-badge {
+  display: inline-flex;
+  margin-top: 24rpx;
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  color: #2f765e;
+  font-size: 24rpx;
+  font-weight: 700;
+  background: #dfeee7;
+}
+
+.empty-card {
+  margin-top: 64rpx;
+  padding: 48rpx 36rpx;
+  border: 1rpx solid rgba(47, 118, 94, 0.09);
+  border-radius: 30rpx;
   text-align: center;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18rpx 54rpx rgba(45, 86, 69, 0.07);
+}
+
+.empty-card__icon {
+  display: flex;
+  width: 86rpx;
+  height: 86rpx;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28rpx;
+  color: #2f765e;
+  font-size: 46rpx;
+  background: #dfeee7;
+}
+
+.empty-card__title {
+  margin-top: 28rpx;
+  color: #244c3e;
+  font-size: 31rpx;
+  font-weight: 700;
+}
+
+.empty-card__description {
+  margin-top: 14rpx;
+  color: #70857d;
+  font-size: 25rpx;
+  line-height: 1.65;
 }
 
 .privacy-note {
