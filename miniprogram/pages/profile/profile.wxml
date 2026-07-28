@@ -1,0 +1,145 @@
+<view class="profile-shell">
+  <view class="profile-header">
+    <view class="profile-header__eyebrow">{{familyName}}</view>
+    <view class="profile-header__title">健康档案</view>
+    <view class="profile-header__description">
+      档案跟随用户，不属于单个家庭。家人只有在你明确允许后才能代为修改。
+    </view>
+  </view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    <view class="state-card__title">正在加载健康档案</view>
+    <view class="state-card__description">请稍候</view>
+  </view>
+
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <view wx:else>
+    <view class="profile-card">
+      <view class="field-label">查看谁的档案</view>
+      <picker
+        id="profile-member-picker"
+        range="{{members}}"
+        range-key="displayName"
+        value="{{selectedMemberIndex}}"
+        bindchange="onMemberChange"
+      >
+        <view class="picker-value">
+          <view>
+            <view class="picker-value__main">
+              {{selectedMember.displayName}}
+              {{selectedMember.isSelf ? "（我）" : ""}}
+            </view>
+            <view class="picker-value__sub">
+              {{selectedMember.role === "admin" ? "管理员" : "家庭成员"}}
+            </view>
+          </view>
+          <view class="picker-value__arrow">⌄</view>
+        </view>
+      </picker>
+    </view>
+
+    <view
+      wx:if="{{selectedMember.isSelf}}"
+      class="permission-card"
+    >
+      <view class="permission-card__body">
+        <view class="permission-card__title">允许当前家庭代管</view>
+        <view class="permission-card__description">
+          开启后，这个家庭的有效成员都可以修改你的档案。
+        </view>
+      </view>
+      <switch
+        id="profile-management-switch"
+        color="#2f765e"
+        checked="{{profileManagementAllowed}}"
+        disabled="{{updatingPermission}}"
+        bindchange="onManagementChange"
+      />
+    </view>
+
+    <view wx:if="{{!canEdit}}" class="notice-card">
+      你可以查看这份档案，但档案所有者尚未允许当前家庭代管。
+    </view>
+
+    <view class="profile-card">
+      <view class="profile-card__heading">
+        <view class="profile-card__title">当前健康背景</view>
+        <view wx:if="{{!profile}}" class="profile-card__badge">尚未设置</view>
+      </view>
+
+      <view class="field-group">
+        <view class="field-label">糖尿病情况</view>
+        <picker
+          id="profile-diabetes-picker"
+          range="{{diabetesOptions}}"
+          range-key="label"
+          value="{{diabetesIndex}}"
+          disabled="{{!canEdit}}"
+          bindchange="onDiabetesChange"
+        >
+          <view class="field-picker {{!canEdit ? 'field-picker--disabled' : ''}}">
+            {{diabetesOptions[diabetesIndex].label}}
+          </view>
+        </picker>
+      </view>
+
+      <view class="field-group">
+        <view class="field-label">高血压情况</view>
+        <picker
+          id="profile-hypertension-picker"
+          range="{{hypertensionOptions}}"
+          range-key="label"
+          value="{{hypertensionIndex}}"
+          disabled="{{!canEdit}}"
+          bindchange="onHypertensionChange"
+        >
+          <view class="field-picker {{!canEdit ? 'field-picker--disabled' : ''}}">
+            {{hypertensionOptions[hypertensionIndex].label}}
+          </view>
+        </picker>
+      </view>
+
+      <view
+        wx:if="{{hypertensionOptions[hypertensionIndex].value === 'diagnosed'}}"
+        class="field-group"
+      >
+        <view class="field-label">高血压分级（选填）</view>
+        <picker
+          id="profile-grade-picker"
+          range="{{gradeOptions}}"
+          range-key="label"
+          value="{{gradeIndex}}"
+          disabled="{{!canEdit}}"
+          bindchange="onGradeChange"
+        >
+          <view class="field-picker {{!canEdit ? 'field-picker--disabled' : ''}}">
+            {{gradeOptions[gradeIndex].label}}
+          </view>
+        </picker>
+      </view>
+
+      <button
+        wx:if="{{canEdit}}"
+        id="profile-save-button"
+        class="primary-button"
+        loading="{{saving}}"
+        disabled="{{saving}}"
+        bindtap="onSaveProfile"
+      >
+        保存健康档案
+      </button>
+    </view>
+
+    <view wx:if="{{message}}" class="feedback feedback--success">
+      {{message}}
+    </view>
+    <view wx:if="{{errorMessage}}" class="feedback feedback--error">
+      {{errorMessage}}
+    </view>
+  </view>
+</view>

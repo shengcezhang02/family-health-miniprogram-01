@@ -120,6 +120,20 @@ Page({
     });
   },
 
+  onOpenProfiles() {
+    const family = this.data.currentFamily;
+
+    if (!family) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/profile/profile?familyId=${family.id}&familyName=${encodeURIComponent(
+        family.name,
+      )}`,
+    });
+  },
+
   onToggleFamilySwitcher() {
     this.setData({
       showFamilySwitcher: !this.data.showFamilySwitcher,

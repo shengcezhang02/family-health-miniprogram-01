@@ -1,7 +1,8 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/invite/invite"
+    "pages/invite/invite",
+    "pages/profile/profile"
   ],
   "window": {
     "backgroundColor": "#F4F7F5",

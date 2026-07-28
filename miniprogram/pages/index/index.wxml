@@ -131,11 +131,18 @@
     </view>
 
     <view class="empty-card">
-      <view class="empty-card__icon">✓</view>
-      <view class="empty-card__title">家庭空间已经准备好</view>
+      <view class="empty-card__icon">档</view>
+      <view class="empty-card__title">维护家人的健康档案</view>
       <view class="empty-card__description">
-        当前阶段已经完成。健康档案、记录和提醒将在后续版本逐步加入。
+        记录当前糖尿病和高血压情况。本人可以随时修改，也可以明确允许家人代管。
       </view>
+      <button
+        id="open-profiles-button"
+        class="primary-button"
+        bindtap="onOpenProfiles"
+      >
+        打开健康档案
+      </button>
     </view>
 
     <view class="family-actions">

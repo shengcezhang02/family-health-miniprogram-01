@@ -17,9 +17,9 @@ App({
     });
   },
 
-  async callFamilyApi(action, data) {
+  async callCloudApi(name, action, data) {
     const response = await wx.cloud.callFunction({
-      name: "family-api",
+      name,
       data: {
         action,
         requestId: `${action}-${Date.now()}-${Math.random()
@@ -39,5 +39,13 @@ App({
     }
 
     return result.data;
+  },
+
+  async callFamilyApi(action, data) {
+    return this.callCloudApi("family-api", action, data);
+  },
+
+  async callProfileApi(action, data) {
+    return this.callCloudApi("profile-api", action, data);
   },
 });
