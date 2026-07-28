@@ -45,7 +45,7 @@
     "disableSWC": true
   },
   "appid": "wxf480ef2f3fc03a0e",
-  "projectname": "quickstart-wx-cloud",
+  "projectname": "family-health-miniprogram-01",
   "libVersion": "2.20.1",
   "cloudfunctionTemplateRoot": "cloudfunctionTemplate/",
   "condition": {

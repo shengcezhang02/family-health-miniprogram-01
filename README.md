@@ -1,12 +1,15 @@
-# 云开发 quickstart
+# 家庭健康小程序
 
-这是云开发的快速启动指引，其中演示了如何上手使用云开发的三大基础能力：
+一个使用微信原生小程序和 CloudBase 构建的家庭健康信息管理工具。
 
-- 数据库：一个既可在小程序前端操作，也能在云函数中读写的 JSON 文档型数据库
-- 文件存储：在小程序前端直接上传/下载云端文件，在云开发控制台可视化管理
-- 云函数：在云端运行的代码，微信私有协议天然鉴权，开发者只需编写业务逻辑代码
+## 当前阶段
 
-## 参考文档
+[M0 开发地基](docs/MILESTONES.md#m0开发地基)已完成，下一步是 M1“第一个家庭”。
 
-- [云开发文档](https://developers.weixin.qq.com/miniprogram/dev/wxcloud/basis/getting-started.html)
+## 本地验证
 
+```bash
+npm test
+```
+
+小程序源代码位于 `miniprogram/`，云函数位于 `cloudfunctions/`。
