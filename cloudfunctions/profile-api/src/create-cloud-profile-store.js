@@ -159,18 +159,16 @@ function createCloudProfileStore(db) {
       timestamp,
     }) {
       return db.runTransaction(async (transaction) => {
-        const [callerMembership, ownerMembership] = await Promise.all([
-          findMembershipInTransaction(
-            transaction,
-            familyId,
-            callerUserId,
-          ),
-          findMembershipInTransaction(
-            transaction,
-            familyId,
-            ownerUserId,
-          ),
-        ]);
+        const callerMembership = await findMembershipInTransaction(
+          transaction,
+          familyId,
+          callerUserId,
+        );
+        const ownerMembership = await findMembershipInTransaction(
+          transaction,
+          familyId,
+          ownerUserId,
+        );
 
         if (
           !callerMembership ||
