@@ -137,7 +137,6 @@
 
 .choice-card {
   display: flex;
-  width: 100%;
   min-height: 154rpx;
   box-sizing: border-box;
   align-items: center;
@@ -149,6 +148,12 @@
   text-align: left;
   background: #ffffff;
   box-shadow: 0 18rpx 54rpx rgba(45, 86, 69, 0.09);
+}
+
+.choice-list .choice-card {
+  width: 100%;
+  margin-right: 0;
+  margin-left: 0;
 }
 
 .choice-card::after,
