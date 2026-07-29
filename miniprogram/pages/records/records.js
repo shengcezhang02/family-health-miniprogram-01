@@ -48,11 +48,18 @@ function formatTimelineItems(items, members) {
         ),
       )
       .sort((left, right) => left.sortOrder - right.sortOrder)
-      .map((field) => ({
-        key: field.key,
-        label: field.label,
-        value: `${item.values[field.key]}${field.unit || ""}`,
-      })),
+      .map((field) => {
+        const rawValue = item.values[field.key];
+        const choice = (field.options || []).find(
+          (option) => option.key === rawValue,
+        );
+
+        return {
+          key: field.key,
+          label: field.label,
+          value: `${choice?.label ?? rawValue}${field.unit || ""}`,
+        };
+      }),
   }));
 }
 
@@ -94,6 +101,32 @@ Page({
   onQuickAdd() {
     wx.navigateTo({
       url: `/pages/record-editor/record-editor?familyId=${
+        this.data.familyId
+      }&familyName=${encodeURIComponent(this.data.familyName)}`,
+    });
+  },
+
+  onOpenRecord(event) {
+    wx.navigateTo({
+      url: `/pages/record-detail/record-detail?recordId=${
+        event.currentTarget.dataset.recordId
+      }&familyId=${this.data.familyId}&familyName=${encodeURIComponent(
+        this.data.familyName,
+      )}`,
+    });
+  },
+
+  onOpenDeletedRecords() {
+    wx.navigateTo({
+      url: `/pages/deleted-records/deleted-records?familyId=${
+        this.data.familyId
+      }&familyName=${encodeURIComponent(this.data.familyName)}`,
+    });
+  },
+
+  onOpenTemplates() {
+    wx.navigateTo({
+      url: `/pages/templates/templates?familyId=${
         this.data.familyId
       }&familyName=${encodeURIComponent(this.data.familyName)}`,
     });

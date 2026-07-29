@@ -35,7 +35,33 @@ function toRecordSummary(record) {
     summary.remark = record.remark;
   }
 
+  if (record.deletedAt) {
+    summary.deletedAt = toIsoString(record.deletedAt);
+    summary.deletedByUserId = record.deletedByUserId;
+  }
+
   return summary;
+}
+
+function toActiveTemplate(template) {
+  return {
+    ...template,
+    id: template.id ?? template._id,
+    fields: template.fields
+      .filter((field) => field.status !== "inactive")
+      .map(({ status, options, ...field }) => ({
+        ...field,
+        ...(options
+          ? {
+              options: options
+                .filter((option) => option.status !== "inactive")
+                .map(({ status: optionStatus, ...option }) => ({
+                  ...option,
+                })),
+            }
+          : {}),
+      })),
+  };
 }
 
 function validateRecordInput(data, template) {
@@ -117,6 +143,24 @@ function validateRecordInput(data, template) {
       continue;
     }
 
+    if (field.type === "single_choice") {
+      const allowedOptions = new Set(
+        (field.options ?? []).map((option) => option.key),
+      );
+
+      if (
+        typeof rawValue !== "string" ||
+        !allowedOptions.has(rawValue)
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          `${field.label}必须选择有效选项`,
+        );
+      }
+      values[field.key] = rawValue;
+      continue;
+    }
+
     throw new ApiError("INVALID_ARGUMENT", "模板包含暂不支持的字段类型");
   }
 
@@ -139,6 +183,85 @@ function validateRecordInput(data, template) {
   };
 }
 
+function appendTemporaryFields(data, template) {
+  if (data.temporaryFields === undefined) {
+    return {
+      template,
+      values: data.values,
+    };
+  }
+
+  if (
+    !Array.isArray(data.temporaryFields) ||
+    data.temporaryFields.length > 3
+  ) {
+    throw new ApiError(
+      "INVALID_ARGUMENT",
+      "一条记录最多可以添加 3 个临时字段",
+    );
+  }
+
+  const baseSortOrder = Math.max(
+    0,
+    ...template.fields.map((field) => field.sortOrder ?? 0),
+  );
+  const temporaryFields = data.temporaryFields.map((field, index) => {
+    const label =
+      typeof field.label === "string" ? field.label.trim() : "";
+
+    if (!label || label.length > 30) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请填写 1 至 30 个字的临时字段名称",
+      );
+    }
+
+    if (
+      field.value !== undefined &&
+      (typeof field.value !== "string" ||
+        field.value.trim().length > 100)
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        `${label}最多填写100个字`,
+      );
+    }
+
+    return {
+      key: `temporary-${index + 1}`,
+      label,
+      type: "short_text",
+      required: false,
+      temporary: true,
+      sortOrder: baseSortOrder + (index + 1) * 10,
+    };
+  });
+  const fieldKeys = new Set(template.fields.map((field) => field.key));
+
+  if (temporaryFields.some((field) => fieldKeys.has(field.key))) {
+    throw new ApiError(
+      "INVALID_ARGUMENT",
+      "模板字段与临时字段编号冲突",
+    );
+  }
+
+  return {
+    template: {
+      ...template,
+      fields: [...template.fields, ...temporaryFields],
+    },
+    values: {
+      ...data.values,
+      ...Object.fromEntries(
+        temporaryFields.map((field, index) => [
+          field.key,
+          data.temporaryFields[index].value,
+        ]),
+      ),
+    },
+  };
+}
+
 function createHealthItemApi({
   getCaller,
   healthItemStore,
@@ -147,6 +270,90 @@ function createHealthItemApi({
   now,
   reportError = () => {},
 } = {}) {
+  async function changeDeletionState(data, shouldRestore) {
+    if (
+      typeof data.recordId !== "string" ||
+      !data.recordId ||
+      !Number.isInteger(data.expectedRevision) ||
+      data.expectedRevision < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请提供记录和当前版本",
+      );
+    }
+
+    const [caller, record] = await Promise.all([
+      getCaller(),
+      healthItemStore.getRecordById(data.recordId),
+    ]);
+
+    if (
+      !record ||
+      (shouldRestore ? !record.deletedAt : Boolean(record.deletedAt))
+    ) {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        shouldRestore ? "没有找到可恢复的记录" : "这条记录不存在或已删除",
+      );
+    }
+
+    const membership = await healthItemStore.getActiveMembership(
+      record.familyId,
+      caller._id,
+    );
+
+    if (!membership) {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        shouldRestore
+          ? "只有当前家庭的有效成员可以恢复记录"
+          : "只有当前家庭的有效成员可以删除记录",
+      );
+    }
+
+    const result = shouldRestore
+      ? await healthItemStore.restoreRecord({
+          recordId: record._id,
+          familyId: record.familyId,
+          expectedRevision: data.expectedRevision,
+          updatedByUserId: caller._id,
+          updatedAt: now(),
+        })
+      : await healthItemStore.softDeleteRecord({
+          recordId: record._id,
+          familyId: record.familyId,
+          expectedRevision: data.expectedRevision,
+          updatedByUserId: caller._id,
+          updatedAt: now(),
+        });
+
+    if (result.outcome === "permission-denied") {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以更改记录",
+      );
+    }
+
+    if (result.outcome === "not-found") {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        shouldRestore ? "没有找到可恢复的记录" : "这条记录不存在或已删除",
+      );
+    }
+
+    if (result.outcome === "revision-conflict") {
+      throw new ApiError(
+        "REVISION_CONFLICT",
+        "记录已被其他人修改，请刷新后重试",
+      );
+    }
+
+    return {
+      record: toRecordSummary(result.record),
+    };
+  }
+
   const actions = {
     async createRecord(data, request) {
       if (
@@ -159,16 +366,18 @@ function createHealthItemApi({
         );
       }
 
-      const template = getSystemTemplate(data.sourceTemplateId);
+      const sourceTemplateType =
+        data.sourceTemplateType === undefined
+          ? "system"
+          : data.sourceTemplateType;
 
-      if (!template) {
-        throw new ApiError(
-          "TEMPLATE_NOT_FOUND",
-          "这个系统模板不存在或已停用",
-        );
+      if (
+        sourceTemplateType !== "system" &&
+        sourceTemplateType !== "custom"
+      ) {
+        throw new ApiError("INVALID_ARGUMENT", "模板类型不正确");
       }
 
-      const input = validateRecordInput(data, template);
       const caller = await getCaller();
       const [callerMembership, subjectMembership] = await Promise.all([
         healthItemStore.getActiveMembership(data.familyId, caller._id),
@@ -185,6 +394,31 @@ function createHealthItemApi({
         );
       }
 
+      const sourceTemplate =
+        sourceTemplateType === "system"
+          ? getSystemTemplate(data.sourceTemplateId)
+          : await healthItemStore.getCustomTemplate(
+              data.familyId,
+              data.sourceTemplateId,
+            );
+
+      if (!sourceTemplate || sourceTemplate.status === "inactive") {
+        throw new ApiError(
+          "TEMPLATE_NOT_FOUND",
+          "这个模板不存在或已停用",
+        );
+      }
+
+      const activeTemplate = toActiveTemplate(sourceTemplate);
+      const prepared = appendTemporaryFields(data, activeTemplate);
+      const template = prepared.template;
+      const input = validateRecordInput(
+        {
+          ...data,
+          values: prepared.values,
+        },
+        template,
+      );
       const recordId = createRecordId({
         callerUserId: caller._id,
         requestId: request.requestId,
@@ -194,7 +428,7 @@ function createHealthItemApi({
         _id: recordId,
         familyId: data.familyId,
         subjectUserId: data.subjectUserId,
-        sourceTemplateType: "system",
+        sourceTemplateType,
         sourceTemplateId: template.id,
         templateNameSnapshot: template.name,
         fieldSchemaSnapshot: template.fields.map((field) => ({
@@ -247,6 +481,115 @@ function createHealthItemApi({
       return {
         record: toRecordSummary(record),
       };
+    },
+
+    async updateHealthItem(data) {
+      if (
+        typeof data.recordId !== "string" ||
+        !data.recordId ||
+        !Number.isInteger(data.expectedRevision) ||
+        data.expectedRevision < 1
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请提供记录和当前版本",
+        );
+      }
+
+      const lockedFields = [
+        "familyId",
+        "subjectUserId",
+        "sourceTemplateType",
+        "sourceTemplateId",
+        "templateNameSnapshot",
+        "fieldSchemaSnapshot",
+        "recordSource",
+      ];
+      if (lockedFields.some((field) => Object.hasOwn(data, field))) {
+        throw new ApiError(
+          "LOCKED_FIELDS_CANNOT_CHANGE",
+          "记录保存后不能更换所属人、模板或表单结构",
+        );
+      }
+
+      const [caller, record] = await Promise.all([
+        getCaller(),
+        healthItemStore.getRecordById(data.recordId),
+      ]);
+
+      if (!record || record.deletedAt) {
+        throw new ApiError(
+          "HEALTH_ITEM_NOT_FOUND",
+          "这条记录不存在或已删除",
+        );
+      }
+
+      const membership = await healthItemStore.getActiveMembership(
+        record.familyId,
+        caller._id,
+      );
+
+      if (!membership) {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以修改记录",
+        );
+      }
+
+      const input = validateRecordInput(
+        {
+          ...data,
+          familyId: record.familyId,
+          subjectUserId: record.subjectUserId,
+          sourceTemplateId: record.sourceTemplateId,
+        },
+        {
+          fields: record.fieldSchemaSnapshot,
+        },
+      );
+      const result = await healthItemStore.updateRecord({
+        recordId: record._id,
+        familyId: record.familyId,
+        expectedRevision: data.expectedRevision,
+        values: input.values,
+        remark: input.remark,
+        occurredAt: input.occurredAt,
+        updatedByUserId: caller._id,
+        updatedAt: now(),
+      });
+
+      if (result.outcome === "permission-denied") {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以修改记录",
+        );
+      }
+
+      if (result.outcome === "not-found") {
+        throw new ApiError(
+          "HEALTH_ITEM_NOT_FOUND",
+          "这条记录不存在或已删除",
+        );
+      }
+
+      if (result.outcome === "revision-conflict") {
+        throw new ApiError(
+          "REVISION_CONFLICT",
+          "记录已被其他人修改，请刷新后重试",
+        );
+      }
+
+      return {
+        record: toRecordSummary(result.record),
+      };
+    },
+
+    async softDeleteItem(data) {
+      return changeDeletionState(data, false);
+    },
+
+    async restoreItem(data) {
+      return changeDeletionState(data, true);
     },
   };
 

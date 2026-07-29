@@ -92,6 +92,23 @@
             data-field-key="{{item.key}}"
             bindinput="onFieldInput"
           />
+          <picker
+            wx:elif="{{item.type === 'single_choice'}}"
+            class="choice-picker"
+            range="{{item.options}}"
+            range-key="label"
+            value="{{fieldChoiceIndexes[item.key] || 0}}"
+            disabled="{{saving}}"
+            data-field-key="{{item.key}}"
+            bindchange="onChoiceChange"
+          >
+            <view class="picker-value">
+              <view>
+                {{selectedChoiceLabels[item.key] || "请选择"}}
+              </view>
+              <view class="picker-value__arrow">⌄</view>
+            </view>
+          </picker>
           <input
             wx:else
             id="record-field-{{item.key}}"
@@ -143,6 +160,55 @@
           bindinput="onRemarkInput"
         />
       </view>
+    </view>
+
+    <view class="form-card">
+      <view class="form-card__title">临时字段（选填）</view>
+      <view class="form-hint">
+        只属于这条记录，保存后不能再改变字段结构；最多 3 个。
+      </view>
+      <view
+        wx:for="{{temporaryFields}}"
+        wx:key="index"
+        class="temporary-field"
+      >
+        <input
+          class="field-input standalone-input"
+          maxlength="30"
+          value="{{item.label}}"
+          placeholder="字段名，例如：昨晚睡眠"
+          disabled="{{saving}}"
+          data-index="{{index}}"
+          data-property="label"
+          bindinput="onTemporaryFieldInput"
+        />
+        <input
+          class="field-input standalone-input"
+          maxlength="100"
+          value="{{item.value}}"
+          placeholder="填写内容"
+          disabled="{{saving}}"
+          data-index="{{index}}"
+          data-property="value"
+          bindinput="onTemporaryFieldInput"
+        />
+        <button
+          class="small-text-button"
+          disabled="{{saving}}"
+          data-index="{{index}}"
+          bindtap="onRemoveTemporaryField"
+        >
+          移除
+        </button>
+      </view>
+      <button
+        wx:if="{{temporaryFields.length < 3}}"
+        class="secondary-button"
+        disabled="{{saving}}"
+        bindtap="onAddTemporaryField"
+      >
+        ＋ 添加临时字段
+      </button>
     </view>
 
     <view wx:if="{{errorMessage}}" class="feedback">

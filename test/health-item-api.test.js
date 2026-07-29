@@ -45,6 +45,7 @@ function createApiFor({
       userId: caller._id,
     }),
   ],
+  templates = [],
   records = [],
   now = new Date("2026-07-29T01:30:00.000Z"),
   createRecordId = () => "record-1",
@@ -52,6 +53,7 @@ function createApiFor({
   const healthItemStore = createInMemoryHealthItemStore({
     users: caller === subject ? [caller] : [caller, subject],
     memberships,
+    templates,
     records,
   });
   const api = createHealthItemApi({
@@ -263,4 +265,446 @@ test("创建记录必须携带 requestId，避免不同保存被误判为重试"
       message: "缺少本次保存的请求编号，请重试",
     },
   });
+});
+
+test("使用自定义模板创建记录时保存独立字段快照", async () => {
+  const caller = createUser();
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    templates: [
+      {
+        _id: "template-morning",
+        familyId: "family-1",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-mood",
+            label: "晨间心情",
+            type: "short_text",
+            required: true,
+            status: "active",
+            sortOrder: 10,
+          },
+          {
+            key: "field-old",
+            label: "旧字段",
+            type: "short_text",
+            required: false,
+            status: "inactive",
+            sortOrder: 20,
+          },
+        ],
+      },
+    ],
+  });
+
+  const result = await api.handle({
+    action: "createRecord",
+    requestId: "req-create-custom-record",
+    data: {
+      familyId: "family-1",
+      subjectUserId: caller._id,
+      sourceTemplateType: "custom",
+      sourceTemplateId: "template-morning",
+      occurredAt: "2026-07-29T04:10:00.000Z",
+      values: {
+        "field-mood": "精神很好",
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const [saved] = healthItemStore.inspectRecords();
+  assert.equal(saved.sourceTemplateType, "custom");
+  assert.equal(saved.sourceTemplateId, "template-morning");
+  assert.equal(saved.templateNameSnapshot, "晨间状态");
+  assert.deepEqual(saved.fieldSchemaSnapshot, [
+    {
+      key: "field-mood",
+      label: "晨间心情",
+      type: "short_text",
+      required: true,
+      sortOrder: 10,
+    },
+  ]);
+});
+
+test("有效家庭成员可以编辑记录内容但记录结构保持不变", async () => {
+  const originalRecord = {
+    _id: "record-edit",
+    familyId: "family-1",
+    subjectUserId: "user-1",
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: {
+      temperature: 36.6,
+    },
+    occurredAt: new Date("2026-07-29T06:00:00.000Z"),
+    recordSource: "manual",
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision: 1,
+    createdAt: new Date("2026-07-29T06:01:00.000Z"),
+    updatedAt: new Date("2026-07-29T06:01:00.000Z"),
+    originRecordId: "record-edit",
+  };
+  const { api, healthItemStore } = createApiFor({
+    records: [originalRecord],
+    now: new Date("2026-07-29T06:30:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "updateHealthItem",
+    requestId: "req-update-record",
+    data: {
+      recordId: "record-edit",
+      expectedRevision: 1,
+      occurredAt: "2026-07-29T06:20:00.000Z",
+      values: {
+        temperature: 37.1,
+      },
+      remark: "复测",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.record.revision, 2);
+  const [saved] = healthItemStore.inspectRecords();
+  assert.equal(saved.values.temperature, 37.1);
+  assert.equal(saved.remark, "复测");
+  assert.deepEqual(
+    saved.fieldSchemaSnapshot,
+    originalRecord.fieldSchemaSnapshot,
+  );
+  assert.equal(saved.sourceTemplateId, originalRecord.sourceTemplateId);
+  assert.equal(saved.createdAt.getTime(), originalRecord.createdAt.getTime());
+});
+
+test("两个成员基于同一版本编辑记录时拒绝后保存的一方", async () => {
+  const record = {
+    _id: "record-conflict",
+    familyId: "family-1",
+    subjectUserId: "user-1",
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: { temperature: 36.6 },
+    occurredAt: new Date("2026-07-29T06:00:00.000Z"),
+    recordSource: "manual",
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision: 1,
+    createdAt: new Date("2026-07-29T06:01:00.000Z"),
+    updatedAt: new Date("2026-07-29T06:01:00.000Z"),
+    originRecordId: "record-conflict",
+  };
+  const { api } = createApiFor({
+    records: [record],
+    now: new Date("2026-07-29T06:30:00.000Z"),
+  });
+  const baseRequest = {
+    action: "updateHealthItem",
+    data: {
+      recordId: "record-conflict",
+      expectedRevision: 1,
+      occurredAt: "2026-07-29T06:20:00.000Z",
+      values: {
+        temperature: 37,
+      },
+    },
+  };
+
+  const first = await api.handle({
+    ...baseRequest,
+    requestId: "req-first-editor",
+  });
+  const second = await api.handle({
+    ...baseRequest,
+    requestId: "req-second-editor",
+  });
+
+  assert.equal(first.ok, true);
+  assert.deepEqual(second, {
+    ok: false,
+    requestId: "req-second-editor",
+    error: {
+      code: "REVISION_CONFLICT",
+      message: "记录已被其他人修改，请刷新后重试",
+    },
+  });
+});
+
+test("记录首次保存后不能更换所属人、模板或字段结构", async () => {
+  const record = {
+    _id: "record-locked",
+    familyId: "family-1",
+    subjectUserId: "user-1",
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: { temperature: 36.6 },
+    occurredAt: new Date("2026-07-29T06:00:00.000Z"),
+    recordSource: "manual",
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision: 1,
+    createdAt: new Date("2026-07-29T06:01:00.000Z"),
+    updatedAt: new Date("2026-07-29T06:01:00.000Z"),
+    originRecordId: "record-locked",
+  };
+  const { api, healthItemStore } = createApiFor({
+    records: [record],
+  });
+
+  const result = await api.handle({
+    action: "updateHealthItem",
+    requestId: "req-switch-template",
+    data: {
+      recordId: "record-locked",
+      expectedRevision: 1,
+      sourceTemplateId: "sys_blood_glucose",
+      occurredAt: "2026-07-29T06:20:00.000Z",
+      values: {
+        temperature: 36.8,
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    requestId: "req-switch-template",
+    error: {
+      code: "LOCKED_FIELDS_CANNOT_CHANGE",
+      message: "记录保存后不能更换所属人、模板或表单结构",
+    },
+  });
+  assert.equal(healthItemStore.inspectRecords()[0].revision, 1);
+});
+
+test("记录软删除后不可见并且可以恢复", async () => {
+  const record = {
+    _id: "record-delete",
+    familyId: "family-1",
+    subjectUserId: "user-1",
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: { temperature: 36.6 },
+    occurredAt: new Date("2026-07-29T06:00:00.000Z"),
+    recordSource: "manual",
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision: 1,
+    createdAt: new Date("2026-07-29T06:01:00.000Z"),
+    updatedAt: new Date("2026-07-29T06:01:00.000Z"),
+    originRecordId: "record-delete",
+  };
+  let now = new Date("2026-07-29T07:00:00.000Z");
+  const healthItemStore = createInMemoryHealthItemStore({
+    users: [createUser()],
+    memberships: [createMembership({ userId: "user-1" })],
+    records: [record],
+  });
+  const api = createHealthItemApi({
+    getCaller: async () => createUser(),
+    healthItemStore,
+    getSystemTemplate,
+    createRecordId: () => "unused",
+    now: () => now,
+  });
+
+  const deleted = await api.handle({
+    action: "softDeleteItem",
+    requestId: "req-delete-record",
+    data: {
+      recordId: "record-delete",
+      expectedRevision: 1,
+    },
+  });
+
+  assert.equal(deleted.ok, true);
+  assert.equal(deleted.data.record.revision, 2);
+  assert.equal(
+    deleted.data.record.deletedAt,
+    "2026-07-29T07:00:00.000Z",
+  );
+
+  const hidden = await api.handle({
+    action: "getHealthItem",
+    requestId: "req-read-deleted-record",
+    data: {
+      recordId: "record-delete",
+    },
+  });
+  assert.equal(hidden.ok, false);
+  assert.equal(hidden.error.code, "HEALTH_ITEM_NOT_FOUND");
+
+  now = new Date("2026-07-29T07:10:00.000Z");
+  const restored = await api.handle({
+    action: "restoreItem",
+    requestId: "req-restore-record",
+    data: {
+      recordId: "record-delete",
+      expectedRevision: 2,
+    },
+  });
+
+  assert.equal(restored.ok, true);
+  assert.equal(restored.data.record.revision, 3);
+  assert.equal(Object.hasOwn(restored.data.record, "deletedAt"), false);
+
+  const visible = await api.handle({
+    action: "getHealthItem",
+    requestId: "req-read-restored-record",
+    data: {
+      recordId: "record-delete",
+    },
+  });
+  assert.equal(visible.ok, true);
+});
+
+test("自定义单选字段只接受模板中的启用选项", async () => {
+  const { api, healthItemStore } = createApiFor({
+    templates: [
+      {
+        _id: "template-mood",
+        familyId: "family-1",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-mood",
+            label: "精神状态",
+            type: "single_choice",
+            required: true,
+            status: "active",
+            sortOrder: 10,
+            options: [
+              {
+                key: "option-good",
+                label: "很好",
+                status: "active",
+                sortOrder: 10,
+              },
+              {
+                key: "option-tired",
+                label: "疲惫",
+                status: "active",
+                sortOrder: 20,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const result = await api.handle({
+    action: "createRecord",
+    requestId: "req-create-choice-record",
+    data: {
+      familyId: "family-1",
+      subjectUserId: "user-1",
+      sourceTemplateType: "custom",
+      sourceTemplateId: "template-mood",
+      occurredAt: "2026-07-29T07:30:00.000Z",
+      values: {
+        "field-mood": "option-good",
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const [saved] = healthItemStore.inspectRecords();
+  assert.equal(saved.values["field-mood"], "option-good");
+  assert.deepEqual(saved.fieldSchemaSnapshot[0].options, [
+    {
+      key: "option-good",
+      label: "很好",
+      sortOrder: 10,
+    },
+    {
+      key: "option-tired",
+      label: "疲惫",
+      sortOrder: 20,
+    },
+  ]);
+});
+
+test("创建记录时最多可以附加简短临时字段并锁定到快照", async () => {
+  const { api, healthItemStore } = createApiFor();
+
+  const result = await api.handle({
+    action: "createRecord",
+    requestId: "req-create-record-with-temporary-field",
+    data: {
+      familyId: "family-1",
+      subjectUserId: "user-1",
+      sourceTemplateId: "sys_temperature",
+      occurredAt: "2026-07-29T08:00:00.000Z",
+      values: {
+        temperature: 36.7,
+      },
+      temporaryFields: [
+        {
+          label: "昨晚睡眠",
+          value: "7 小时",
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const [saved] = healthItemStore.inspectRecords();
+  assert.deepEqual(saved.fieldSchemaSnapshot.at(-1), {
+    key: "temporary-1",
+    label: "昨晚睡眠",
+    type: "short_text",
+    required: false,
+    temporary: true,
+    sortOrder: 20,
+  });
+  assert.equal(saved.values["temporary-1"], "7 小时");
 });

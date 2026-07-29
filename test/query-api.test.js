@@ -120,3 +120,69 @@ test("时间线只返回当前家庭未删除记录，并按发生时间倒序�
     ],
   );
 });
+
+test("已删除记录列表只返回当前家庭的软删除记录", async () => {
+  const caller = {
+    _id: "user-1",
+    displayName: "用户一",
+  };
+  const queryStore = createInMemoryQueryStore({
+    users: [caller],
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: caller._id,
+        status: "active",
+      },
+    ],
+    records: [
+      createRecord({
+        id: "active",
+        occurredAt: "2026-07-29T01:00:00.000Z",
+      }),
+      createRecord({
+        id: "deleted-older",
+        occurredAt: "2026-07-29T02:00:00.000Z",
+        deletedAt: "2026-07-29T03:00:00.000Z",
+      }),
+      createRecord({
+        id: "deleted-newer",
+        occurredAt: "2026-07-29T01:30:00.000Z",
+        deletedAt: "2026-07-29T04:00:00.000Z",
+      }),
+    ],
+  });
+  const api = createQueryApi({
+    getCaller: async () => structuredClone(caller),
+    queryStore,
+  });
+
+  const result = await api.handle({
+    action: "getDeletedRecordTimeline",
+    requestId: "req-deleted-record-timeline",
+    data: {
+      familyId: "family-1",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.data.items.map((item) => ({
+      id: item.id,
+      deletedAt: item.deletedAt,
+      revision: item.revision,
+    })),
+    [
+      {
+        id: "deleted-newer",
+        deletedAt: "2026-07-29T04:00:00.000Z",
+        revision: 1,
+      },
+      {
+        id: "deleted-older",
+        deletedAt: "2026-07-29T03:00:00.000Z",
+        revision: 1,
+      },
+    ],
+  );
+});

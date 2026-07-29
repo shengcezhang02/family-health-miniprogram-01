@@ -4,6 +4,9 @@ const assert = require("node:assert/strict");
 const {
   createTemplateApi,
 } = require("../cloudfunctions/template-api/src/create-template-api");
+const {
+  createInMemoryTemplateStore,
+} = require("./support/create-in-memory-template-store");
 
 function createTemplateApiFor({
   callerUserId = "user-1",
@@ -12,17 +15,20 @@ function createTemplateApiFor({
     userId: "user-1",
     status: "active",
   },
+  createId = (kind) => `${kind}-1`,
+  now = new Date("2026-07-29T04:00:00.000Z"),
 } = {}) {
+  const templateStore = createInMemoryTemplateStore({
+    memberships: membership ? [membership] : [],
+  });
+
   return createTemplateApi({
     getCaller: async () => ({ _id: callerUserId }),
-    templateStore: {
-      async getActiveMembership(familyId, userId) {
-        return membership?.familyId === familyId &&
-          membership?.userId === userId &&
-          membership?.status === "active"
-          ? structuredClone(membership)
-          : null;
-      },
+    templateStore,
+    createId,
+    now: () => now,
+    reportError(error) {
+      throw error;
     },
   });
 }
@@ -56,6 +62,406 @@ test("有效家庭成员可以读取四个系统模板", async () => {
       unit: "℃",
       required: true,
       sortOrder: 10,
+    },
+  ]);
+});
+
+test("有效家庭成员可以创建家庭自定义模板", async () => {
+  const api = createTemplateApiFor({
+    createId(kind) {
+      return {
+        template: "template-1",
+        "field-0": "field-1",
+      }[kind];
+    },
+  });
+
+  const result = await api.handle({
+    action: "createCustomTemplate",
+    requestId: "req-create-morning-template",
+    data: {
+      familyId: "family-1",
+      name: "晨间状态",
+      fields: [
+        {
+          label: "晨间心情",
+          type: "short_text",
+          required: true,
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    requestId: "req-create-morning-template",
+    data: {
+      template: {
+        id: "template-1",
+        familyId: "family-1",
+        sourceType: "custom",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-1",
+            label: "晨间心情",
+            type: "short_text",
+            required: true,
+            status: "active",
+            sortOrder: 10,
+          },
+        ],
+        revision: 1,
+        createdByUserId: "user-1",
+        updatedByUserId: "user-1",
+        createdAt: "2026-07-29T04:00:00.000Z",
+        updatedAt: "2026-07-29T04:00:00.000Z",
+      },
+      replayed: false,
+    },
+  });
+});
+
+test("模板改名或停用字段后旧记录仍保留原快照", async () => {
+  const originalRecord = {
+    _id: "record-1",
+    familyId: "family-1",
+    sourceTemplateType: "custom",
+    sourceTemplateId: "template-1",
+    templateNameSnapshot: "晨间状态",
+    fieldSchemaSnapshot: [
+      {
+        key: "field-mood",
+        label: "晨间心情",
+        type: "short_text",
+        required: false,
+        sortOrder: 10,
+      },
+    ],
+    values: {
+      "field-mood": "精神很好",
+    },
+  };
+  const templateStore = createInMemoryTemplateStore({
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+    templates: [
+      {
+        _id: "template-1",
+        familyId: "family-1",
+        originTemplateId: "template-1",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-mood",
+            label: "晨间心情",
+            type: "short_text",
+            required: false,
+            status: "active",
+            sortOrder: 10,
+          },
+          {
+            key: "field-note",
+            label: "补充说明",
+            type: "short_text",
+            required: false,
+            status: "active",
+            sortOrder: 20,
+          },
+        ],
+        defaultNotificationTimes: [],
+        sortOrder: 100,
+        createdByUserId: "user-1",
+        updatedByUserId: "user-1",
+        revision: 1,
+        createdAt: new Date("2026-07-29T04:00:00.000Z"),
+        updatedAt: new Date("2026-07-29T04:00:00.000Z"),
+      },
+    ],
+    records: [originalRecord],
+  });
+  const api = createTemplateApi({
+    getCaller: async () => ({ _id: "user-1" }),
+    templateStore,
+    createId: (kind) => kind,
+    now: () => new Date("2026-07-29T04:30:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "updateCustomTemplate",
+    requestId: "req-update-morning-template",
+    data: {
+      familyId: "family-1",
+      templateId: "template-1",
+      expectedRevision: 1,
+      name: "早晨状态",
+      fields: [
+        {
+          key: "field-mood",
+          label: "起床感受",
+          type: "short_text",
+          required: false,
+          status: "inactive",
+        },
+        {
+          key: "field-note",
+          label: "补充说明",
+          type: "short_text",
+          required: false,
+          status: "active",
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.template.name, "早晨状态");
+  assert.equal(result.data.template.fields[0].status, "inactive");
+  assert.equal(result.data.template.revision, 2);
+  assert.deepEqual(
+    templateStore.inspectRecords()[0],
+    originalRecord,
+  );
+});
+
+test("已经产生记录的模板字段不能被破坏性删除", async () => {
+  const templateStore = createInMemoryTemplateStore({
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+    templates: [
+      {
+        _id: "template-1",
+        familyId: "family-1",
+        originTemplateId: "template-1",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-mood",
+            label: "晨间心情",
+            type: "short_text",
+            required: false,
+            status: "active",
+            sortOrder: 10,
+          },
+          {
+            key: "field-note",
+            label: "补充说明",
+            type: "short_text",
+            required: false,
+            status: "active",
+            sortOrder: 20,
+          },
+        ],
+        defaultNotificationTimes: [],
+        sortOrder: 100,
+        createdByUserId: "user-1",
+        updatedByUserId: "user-1",
+        revision: 1,
+        createdAt: new Date("2026-07-29T04:00:00.000Z"),
+        updatedAt: new Date("2026-07-29T04:00:00.000Z"),
+      },
+    ],
+    records: [
+      {
+        _id: "record-1",
+        familyId: "family-1",
+        sourceTemplateType: "custom",
+        sourceTemplateId: "template-1",
+        fieldSchemaSnapshot: [
+          {
+            key: "field-mood",
+            label: "晨间心情",
+            type: "short_text",
+            required: false,
+            sortOrder: 10,
+          },
+        ],
+        values: {
+          "field-mood": "精神很好",
+        },
+      },
+    ],
+  });
+  const api = createTemplateApi({
+    getCaller: async () => ({ _id: "user-1" }),
+    templateStore,
+    createId: (kind) => kind,
+    now: () => new Date("2026-07-29T05:00:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "updateCustomTemplate",
+    requestId: "req-remove-used-field",
+    data: {
+      familyId: "family-1",
+      templateId: "template-1",
+      expectedRevision: 1,
+      name: "晨间状态",
+      fields: [
+        {
+          key: "field-note",
+          label: "补充说明",
+          type: "short_text",
+          required: false,
+          status: "active",
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    requestId: "req-remove-used-field",
+    error: {
+      code: "TEMPLATE_HISTORY_CONFLICT",
+      message: "已有记录使用这个字段，可以停用但不能删除或改变类型",
+    },
+  });
+  assert.equal(templateStore.inspectTemplates()[0].revision, 1);
+});
+
+test("有效家庭成员可以停用自定义模板", async () => {
+  const templateStore = createInMemoryTemplateStore({
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+    templates: [
+      {
+        _id: "template-1",
+        familyId: "family-1",
+        originTemplateId: "template-1",
+        name: "晨间状态",
+        status: "active",
+        fields: [
+          {
+            key: "field-mood",
+            label: "晨间心情",
+            type: "short_text",
+            required: false,
+            status: "active",
+            sortOrder: 10,
+          },
+        ],
+        defaultNotificationTimes: [],
+        sortOrder: 100,
+        createdByUserId: "user-1",
+        updatedByUserId: "user-1",
+        revision: 1,
+        createdAt: new Date("2026-07-29T04:00:00.000Z"),
+        updatedAt: new Date("2026-07-29T04:00:00.000Z"),
+      },
+    ],
+  });
+  const api = createTemplateApi({
+    getCaller: async () => ({ _id: "user-1" }),
+    templateStore,
+    createId: (kind) => kind,
+    now: () => new Date("2026-07-29T05:30:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "setTemplateStatus",
+    requestId: "req-disable-template",
+    data: {
+      familyId: "family-1",
+      templateId: "template-1",
+      expectedRevision: 1,
+      status: "inactive",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.template.status, "inactive");
+  assert.equal(result.data.template.revision, 2);
+
+  const activeList = await api.handle({
+    action: "listTemplates",
+    requestId: "req-list-active-templates",
+    data: {
+      familyId: "family-1",
+    },
+  });
+  assert.equal(
+    activeList.data.templates.some(
+      (template) => template.id === "template-1",
+    ),
+    false,
+  );
+});
+
+test("自定义单选字段保存稳定选项编号", async () => {
+  const templateStore = createInMemoryTemplateStore({
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+  });
+  const ids = {
+    template: "template-choice",
+    "field-0": "field-mood",
+    "option-0-0": "option-good",
+    "option-0-1": "option-tired",
+  };
+  const api = createTemplateApi({
+    getCaller: async () => ({ _id: "user-1" }),
+    templateStore,
+    createId: (kind) => ids[kind],
+    now: () => new Date("2026-07-29T06:00:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "createCustomTemplate",
+    requestId: "req-create-choice-template",
+    data: {
+      familyId: "family-1",
+      name: "晨间状态",
+      fields: [
+        {
+          label: "精神状态",
+          type: "single_choice",
+          required: true,
+          options: [
+            { label: "很好" },
+            { label: "疲惫" },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.template.fields[0].options, [
+    {
+      key: "option-good",
+      label: "很好",
+      status: "active",
+      sortOrder: 10,
+    },
+    {
+      key: "option-tired",
+      label: "疲惫",
+      status: "active",
+      sortOrder: 20,
     },
   ]);
 });

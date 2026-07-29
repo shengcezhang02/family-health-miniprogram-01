@@ -121,6 +121,47 @@
   font-size: 25rpx;
 }
 
+.choice-picker {
+  width: 100%;
+}
+
+.form-hint {
+  margin-top: 12rpx;
+  color: #70857d;
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.temporary-field {
+  margin-top: 24rpx;
+  padding: 22rpx;
+  border-radius: 20rpx;
+  background: #f4f8f6;
+}
+
+.standalone-input {
+  width: 100%;
+  margin-top: 14rpx;
+  border: 2rpx solid #dce8e2;
+  border-radius: 18rpx;
+  background: #ffffff;
+}
+
+.small-text-button {
+  display: inline-block;
+  margin: 12rpx 0 0;
+  padding: 0;
+  border: 0;
+  color: #a14743;
+  font-size: 23rpx;
+  line-height: 1.8;
+  background: transparent;
+}
+
+.small-text-button::after {
+  border: 0;
+}
+
 .date-time-row {
   display: flex;
   gap: 18rpx;

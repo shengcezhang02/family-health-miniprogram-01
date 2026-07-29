@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const { createHash } = require("node:crypto");
 
 const { createTemplateApi } = require("./src/create-template-api");
 const {
@@ -16,6 +17,12 @@ const api = createTemplateApi({
     return templateStore.getUserByOpenId(openId);
   },
   templateStore,
+  createId: (kind, { callerUserId, requestId }) =>
+    `${kind}-${createHash("sha256")
+      .update(`${callerUserId}\n${requestId}\n${kind}`)
+      .digest("hex")
+      .slice(0, 24)}`,
+  now: () => new Date(),
   reportError: (error) => {
     console.error("template-api failed", error);
   },

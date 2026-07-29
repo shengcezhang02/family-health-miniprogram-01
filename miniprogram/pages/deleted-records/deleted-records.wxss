@@ -1,0 +1,56 @@
+@import "../records/records.wxss";
+
+.records-header__title {
+  margin-top: 16rpx;
+}
+
+.deleted-list {
+  margin-top: 36rpx;
+}
+
+.deleted-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 20rpx;
+  padding: 28rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.deleted-card__title {
+  color: #244c3e;
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.deleted-card__meta {
+  margin-top: 8rpx;
+  color: #70857d;
+  font-size: 22rpx;
+}
+
+.restore-button {
+  flex: 0 0 auto;
+  margin: 0;
+  border: 0;
+  border-radius: 16rpx;
+  color: #2f765e;
+  font-size: 24rpx;
+  font-weight: 700;
+  background: #e3f0ea;
+}
+
+.restore-button::after {
+  border: 0;
+}
+
+.feedback {
+  margin-top: 24rpx;
+  padding: 22rpx 26rpx;
+  border-radius: 18rpx;
+  color: #a14743;
+  font-size: 24rpx;
+  background: #faeceb;
+}

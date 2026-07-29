@@ -38,6 +38,9 @@ Page({
     selectedMember: null,
     selectedTemplate: null,
     fieldValues: {},
+    fieldChoiceIndexes: {},
+    selectedChoiceLabels: {},
+    temporaryFields: [],
     remark: "",
     occurredDate: "",
     occurredTime: "",
@@ -91,6 +94,8 @@ Page({
       selectedTemplateIndex,
       selectedTemplate: this.data.templates[selectedTemplateIndex],
       fieldValues: {},
+      fieldChoiceIndexes: {},
+      selectedChoiceLabels: {},
     });
   },
 
@@ -99,6 +104,61 @@ Page({
     this.markChanged();
     this.setData({
       [`fieldValues.${fieldKey}`]: event.detail.value,
+    });
+  },
+
+  onChoiceChange(event) {
+    const fieldKey = event.currentTarget.dataset.fieldKey;
+    const optionIndex = Number(event.detail.value);
+    const field = this.data.selectedTemplate.fields.find(
+      (candidate) => candidate.key === fieldKey,
+    );
+    const option = field?.options?.[optionIndex];
+
+    if (!option) {
+      return;
+    }
+
+    this.markChanged();
+    this.setData({
+      [`fieldValues.${fieldKey}`]: option.key,
+      [`fieldChoiceIndexes.${fieldKey}`]: optionIndex,
+      [`selectedChoiceLabels.${fieldKey}`]: option.label,
+    });
+  },
+
+  onAddTemporaryField() {
+    if (this.data.temporaryFields.length >= 3) {
+      return;
+    }
+
+    this.markChanged();
+    this.setData({
+      temporaryFields: this.data.temporaryFields.concat([
+        {
+          label: "",
+          value: "",
+        },
+      ]),
+    });
+  },
+
+  onTemporaryFieldInput(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    const property = event.currentTarget.dataset.property;
+    this.markChanged();
+    this.setData({
+      [`temporaryFields[${index}].${property}`]: event.detail.value,
+    });
+  },
+
+  onRemoveTemporaryField(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    this.markChanged();
+    this.setData({
+      temporaryFields: this.data.temporaryFields.filter(
+        (field, fieldIndex) => fieldIndex !== index,
+      ),
     });
   },
 
@@ -168,6 +228,9 @@ Page({
         selectedMember: result.members[selectedMemberIndex],
         selectedTemplate: result.templates[selectedTemplateIndex],
         fieldValues: {},
+        fieldChoiceIndexes: {},
+        selectedChoiceLabels: {},
+        temporaryFields: [],
       });
     } catch (error) {
       this.setData({
@@ -212,16 +275,34 @@ Page({
     return values;
   },
 
+  buildTemporaryFields() {
+    return this.data.temporaryFields.map((field) => {
+      const label = field.label.trim();
+      const value = field.value.trim();
+
+      if (!label) {
+        throw new Error("请填写临时字段名称");
+      }
+
+      return {
+        label,
+        value,
+      };
+    });
+  },
+
   async onSave() {
     if (this.data.saving || !this.data.selectedTemplate) {
       return;
     }
 
     let values;
+    let temporaryFields;
     let occurredAt;
 
     try {
       values = this.buildValues();
+      temporaryFields = this.buildTemporaryFields();
       occurredAt = new Date(
         `${this.data.occurredDate}T${this.data.occurredTime}:00`,
       );
@@ -252,9 +333,11 @@ Page({
         {
           familyId: this.data.familyId,
           subjectUserId: this.data.selectedMember.id,
+          sourceTemplateType: this.data.selectedTemplate.sourceType,
           sourceTemplateId: this.data.selectedTemplate.id,
           occurredAt: occurredAt.toISOString(),
           values,
+          temporaryFields,
           remark: this.data.remark,
         },
         this._saveRequestId,

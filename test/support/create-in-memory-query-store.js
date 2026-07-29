@@ -32,6 +32,20 @@ function createInMemoryQueryStore({
         .map((record) => structuredClone(record));
     },
 
+    async listDeletedRecords(familyId, limit) {
+      return records
+        .filter(
+          (record) =>
+            record.familyId === familyId && record.deletedAt !== undefined,
+        )
+        .sort(
+          (left, right) =>
+            right.deletedAt.getTime() - left.deletedAt.getTime(),
+        )
+        .slice(0, limit)
+        .map((record) => structuredClone(record));
+    },
+
     async getUsersByIds(userIds) {
       return userIds
         .map((userId) => usersById.get(userId))

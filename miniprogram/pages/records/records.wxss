@@ -52,6 +52,26 @@
   border: 0;
 }
 
+.records-tools {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.tool-button {
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 18rpx;
+  color: #2f765e;
+  font-size: 23rpx;
+  background: #e3f0ea;
+}
+
+.tool-button::after {
+  border: 0;
+}
+
 .state-card,
 .empty-state {
   margin-top: 64rpx;
@@ -203,4 +223,12 @@
   color: #60776f;
   font-size: 24rpx;
   line-height: 1.6;
+}
+
+.record-card__open {
+  margin-top: 18rpx;
+  color: #2f765e;
+  font-size: 23rpx;
+  font-weight: 700;
+  text-align: right;
 }

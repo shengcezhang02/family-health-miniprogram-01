@@ -1,0 +1,130 @@
+<view class="editor-shell">
+  <view class="editor-header">
+    <view class="editor-header__eyebrow">{{familyName}}</view>
+    <view class="editor-header__title">记录详情</view>
+    <view class="editor-header__description">
+      可以修改填写内容；所属人、模板和字段结构在首次保存后保持不变。
+    </view>
+  </view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    <view class="state-card__title">正在读取记录</view>
+  </view>
+
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <view wx:else>
+    <view class="form-card">
+      <view class="form-card__title">{{record.templateNameSnapshot}}</view>
+      <view class="form-hint">模板与记录对象已经锁定</view>
+      <view
+        wx:for="{{record.fieldSchemaSnapshot}}"
+        wx:key="key"
+        class="field-group"
+      >
+        <view class="field-label">
+          {{item.label}}{{item.required ? "" : "（选填）"}}
+        </view>
+        <view class="input-with-unit">
+          <input
+            wx:if="{{item.type === 'number'}}"
+            id="record-detail-field-{{item.key}}"
+            class="field-input"
+            type="digit"
+            value="{{fieldValues[item.key]}}"
+            disabled="{{saving || deleting}}"
+            data-field-key="{{item.key}}"
+            bindinput="onFieldInput"
+          />
+          <picker
+            wx:elif="{{item.type === 'single_choice'}}"
+            id="record-detail-field-{{item.key}}"
+            class="choice-picker"
+            range="{{item.options}}"
+            range-key="label"
+            value="{{fieldChoiceIndexes[item.key] || 0}}"
+            disabled="{{saving || deleting}}"
+            data-field-key="{{item.key}}"
+            bindchange="onChoiceChange"
+          >
+            <view class="picker-value">
+              <view>{{selectedChoiceLabels[item.key] || "请选择"}}</view>
+              <view class="picker-value__arrow">⌄</view>
+            </view>
+          </picker>
+          <input
+            wx:else
+            id="record-detail-field-{{item.key}}"
+            class="field-input"
+            type="text"
+            maxlength="100"
+            value="{{fieldValues[item.key]}}"
+            disabled="{{saving || deleting}}"
+            data-field-key="{{item.key}}"
+            bindinput="onFieldInput"
+          />
+          <view wx:if="{{item.unit}}" class="field-unit">{{item.unit}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="field-label">发生时间</view>
+      <view class="date-time-row">
+        <picker
+          mode="date"
+          value="{{occurredDate}}"
+          disabled="{{saving || deleting}}"
+          bindchange="onDateChange"
+        >
+          <view class="date-time-value">{{occurredDate}}</view>
+        </picker>
+        <picker
+          mode="time"
+          value="{{occurredTime}}"
+          disabled="{{saving || deleting}}"
+          bindchange="onTimeChange"
+        >
+          <view class="date-time-value">{{occurredTime}}</view>
+        </picker>
+      </view>
+
+      <view class="field-group">
+        <view class="field-label">备注（选填）</view>
+        <textarea
+          class="remark-input"
+          value="{{remark}}"
+          maxlength="500"
+          auto-height
+          disabled="{{saving || deleting}}"
+          bindinput="onRemarkInput"
+        />
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="feedback">{{errorMessage}}</view>
+
+    <button
+      id="record-update-button"
+      class="primary-button"
+      loading="{{saving}}"
+      disabled="{{saving || deleting}}"
+      bindtap="onSave"
+    >
+      保存修改
+    </button>
+    <button
+      id="record-delete-button"
+      class="danger-button"
+      loading="{{deleting}}"
+      disabled="{{saving || deleting}}"
+      bindtap="onDelete"
+    >
+      删除记录
+    </button>
+  </view>
+</view>

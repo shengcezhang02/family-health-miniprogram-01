@@ -37,6 +37,24 @@ function createCloudQueryStore(db) {
         .slice(0, limit);
     },
 
+    async listDeletedRecords(familyId, limit) {
+      const result = await records
+        .where({
+          familyId,
+        })
+        .limit(100)
+        .get();
+
+      return result.data
+        .filter((record) => record.deletedAt !== undefined)
+        .sort(
+          (left, right) =>
+            new Date(right.deletedAt).getTime() -
+            new Date(left.deletedAt).getTime(),
+        )
+        .slice(0, limit);
+    },
+
     async getUsersByIds(userIds) {
       const results = await Promise.all(
         userIds.map((userId) => users.doc(userId).get()),

@@ -4,7 +4,10 @@
     "pages/invite/invite",
     "pages/profile/profile",
     "pages/records/records",
-    "pages/record-editor/record-editor"
+    "pages/record-editor/record-editor",
+    "pages/record-detail/record-detail",
+    "pages/deleted-records/deleted-records",
+    "pages/templates/templates"
   ],
   "window": {
     "backgroundColor": "#F4F7F5",

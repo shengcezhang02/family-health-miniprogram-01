@@ -27,10 +27,15 @@ function toTimelineItem(record, usersById) {
     values: { ...record.values },
     occurredAt: toIsoString(record.occurredAt),
     createdByUserId: record.createdByUserId,
+    revision: record.revision,
   };
 
   if (record.remark) {
     item.remark = record.remark;
+  }
+
+  if (record.deletedAt) {
+    item.deletedAt = toIsoString(record.deletedAt);
   }
 
   return item;
@@ -65,6 +70,45 @@ function createQueryApi({
           ? Math.min(data.limit, 50)
           : 20;
       const records = await queryStore.listRecordTimeline(
+        data.familyId,
+        limit,
+      );
+      const userIds = [
+        ...new Set(records.map((record) => record.subjectUserId)),
+      ];
+      const users = await queryStore.getUsersByIds(userIds);
+      const usersById = new Map(users.map((user) => [user._id, user]));
+
+      return {
+        items: records.map((record) =>
+          toTimelineItem(record, usersById),
+        ),
+      };
+    },
+
+    async getDeletedRecordTimeline(data) {
+      if (typeof data.familyId !== "string" || !data.familyId) {
+        throw new ApiError("INVALID_ARGUMENT", "请选择家庭");
+      }
+
+      const caller = await getCaller();
+      const membership = await queryStore.getActiveMembership(
+        data.familyId,
+        caller._id,
+      );
+
+      if (!membership) {
+        throw new ApiError(
+          "QUERY_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以查看已删除记录",
+        );
+      }
+
+      const limit =
+        Number.isInteger(data.limit) && data.limit > 0
+          ? Math.min(data.limit, 50)
+          : 20;
+      const records = await queryStore.listDeletedRecords(
         data.familyId,
         limit,
       );

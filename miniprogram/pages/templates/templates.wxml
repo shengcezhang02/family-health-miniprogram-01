@@ -1,0 +1,272 @@
+<view class="template-shell">
+  <view class="template-header">
+    <view class="template-header__eyebrow">{{familyName}}</view>
+    <view class="template-header__row">
+      <view>
+        <view class="template-header__title">自定义模板</view>
+        <view class="template-header__description">
+          把常用的一组字段预先保存，之后可以快速记录。
+        </view>
+      </view>
+      <button
+        wx:if="{{status === 'ready' && !showForm}}"
+        id="template-create-button"
+        class="add-button"
+        bindtap="onCreateTemplate"
+      >
+        ＋ 新建
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    <view class="state-card__title">正在读取模板</view>
+  </view>
+
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <view wx:elif="{{showForm}}" class="template-form">
+    <view class="field-label">模板名称</view>
+    <input
+      id="template-name-input"
+      class="field-input standalone-input"
+      maxlength="40"
+      value="{{formName}}"
+      placeholder="例如：晨间状态"
+      disabled="{{saving}}"
+      bindinput="onNameInput"
+    />
+
+    <view
+      wx:for="{{formFields}}"
+      wx:key="index"
+      class="field-card"
+    >
+      <view class="field-card__top">
+        <view class="field-card__title">字段 {{index + 1}}</view>
+        <button
+          wx:if="{{!item.key && formFields.length > 1}}"
+          class="small-danger-button"
+          data-index="{{index}}"
+          bindtap="onRemoveField"
+        >
+          移除
+        </button>
+      </view>
+
+      <view class="field-label">字段名称</view>
+      <input
+        id="template-field-label-{{index}}"
+        class="field-input standalone-input"
+        maxlength="30"
+        value="{{item.label}}"
+        placeholder="例如：精神状态"
+        disabled="{{saving}}"
+        data-index="{{index}}"
+        data-property="label"
+        bindinput="onFieldInput"
+      />
+
+      <view class="field-label field-label--spaced">字段类型</view>
+      <view wx:if="{{item.key}}" class="locked-type-value">
+        <view>{{fieldTypeLabels[item.typeIndex]}}</view>
+        <view class="locked-type-value__badge">已锁定</view>
+      </view>
+      <picker
+        wx:else
+        id="template-field-type-{{index}}"
+        range="{{fieldTypeLabels}}"
+        value="{{item.typeIndex}}"
+        disabled="{{saving}}"
+        data-index="{{index}}"
+        bindchange="onFieldTypeChange"
+      >
+        <view class="picker-value">
+          <view>{{fieldTypeLabels[item.typeIndex]}}</view>
+          <view class="picker-value__arrow">⌄</view>
+        </view>
+      </picker>
+      <view wx:if="{{item.key}}" class="lock-hint">
+        已保存字段不再改变类型；需要其他类型时，请新增字段并停用旧字段。
+      </view>
+
+      <view wx:if="{{item.type === 'number'}}">
+        <view class="field-label field-label--spaced">单位（选填）</view>
+        <input
+          class="field-input standalone-input"
+          maxlength="20"
+          value="{{item.unit}}"
+          placeholder="例如：kg"
+          disabled="{{saving || !!item.key}}"
+          data-index="{{index}}"
+          data-property="unit"
+          bindinput="onFieldInput"
+        />
+      </view>
+
+      <view class="switch-row">
+        <view>必填</view>
+        <switch
+          checked="{{item.required}}"
+          disabled="{{saving}}"
+          data-index="{{index}}"
+          bindchange="onFieldRequiredChange"
+        />
+      </view>
+      <view wx:if="{{item.key}}" class="switch-row">
+        <view>启用字段</view>
+        <switch
+          id="template-field-status-{{index}}"
+          checked="{{item.status === 'active'}}"
+          disabled="{{saving}}"
+          data-index="{{index}}"
+          bindchange="onFieldStatusChange"
+        />
+      </view>
+
+      <view wx:if="{{item.type === 'single_choice'}}" class="options-panel">
+        <view class="field-label">单选项</view>
+        <view
+          wx:for="{{item.options}}"
+          wx:for-item="option"
+          wx:for-index="optionIndex"
+          wx:key="index"
+          class="option-row"
+        >
+          <input
+            class="field-input option-input"
+            maxlength="30"
+            value="{{option.label}}"
+            placeholder="选项名称"
+            disabled="{{saving}}"
+            data-field-index="{{index}}"
+            data-option-index="{{optionIndex}}"
+            bindinput="onOptionInput"
+          />
+          <switch
+            wx:if="{{option.key}}"
+            checked="{{option.status === 'active'}}"
+            disabled="{{saving}}"
+            data-field-index="{{index}}"
+            data-option-index="{{optionIndex}}"
+            bindchange="onOptionStatusChange"
+          />
+          <button
+            wx:elif="{{item.options.length > 2}}"
+            class="small-danger-button"
+            data-field-index="{{index}}"
+            data-option-index="{{optionIndex}}"
+            bindtap="onRemoveOption"
+          >
+            移除
+          </button>
+        </view>
+        <button
+          wx:if="{{item.options.length < 10}}"
+          class="small-add-button"
+          data-field-index="{{index}}"
+          bindtap="onAddOption"
+        >
+          ＋ 添加选项
+        </button>
+      </view>
+    </view>
+
+    <button
+      wx:if="{{formFields.length < 10}}"
+      id="template-add-field-button"
+      class="secondary-button"
+      disabled="{{saving}}"
+      bindtap="onAddField"
+    >
+      ＋ 添加字段
+    </button>
+
+    <view wx:if="{{errorMessage}}" class="feedback">{{errorMessage}}</view>
+
+    <button
+      id="template-save-button"
+      class="primary-button"
+      loading="{{saving}}"
+      disabled="{{saving}}"
+      bindtap="onSaveTemplate"
+    >
+      保存模板
+    </button>
+    <button
+      class="text-button"
+      disabled="{{saving}}"
+      bindtap="onCancelForm"
+    >
+      取消
+    </button>
+  </view>
+
+  <view wx:elif="{{customTemplates.length === 0}}" class="empty-state">
+    <view class="empty-state__title">还没有自定义模板</view>
+    <view class="empty-state__description">
+      系统自带体温、血压、血糖和用药模板；这里只管理你们家庭新增的模板。
+    </view>
+    <button
+      id="template-create-button"
+      class="primary-button"
+      bindtap="onCreateTemplate"
+    >
+      创建第一个模板
+    </button>
+  </view>
+
+  <view wx:else class="template-list">
+    <view wx:for="{{customTemplates}}" wx:key="id" class="template-card">
+      <view class="template-card__top">
+        <view>
+          <view class="template-card__title">{{item.name}}</view>
+          <view class="template-card__meta">
+            {{item.fields.length}} 个字段 · 版本 {{item.revision}}
+          </view>
+        </view>
+        <view class="status-badge status-badge--{{item.status}}">
+          {{item.status === "active" ? "使用中" : "已停用"}}
+        </view>
+      </view>
+      <view class="template-card__fields">
+        <text
+          wx:for="{{item.fields}}"
+          wx:for-item="field"
+          wx:key="key"
+        >
+          {{field.label}}{{field.status === "inactive" ? "（停用）" : ""}}
+          {{index < item.fields.length - 1 ? "、" : ""}}
+        </text>
+      </view>
+      <view class="card-actions">
+        <button
+          id="template-edit-{{item.id}}"
+          class="card-button"
+          data-template-id="{{item.id}}"
+          bindtap="onEditTemplate"
+        >
+          编辑
+        </button>
+        <button
+          id="template-status-{{item.id}}"
+          class="card-button card-button--quiet"
+          loading="{{changingStatusId === item.id}}"
+          disabled="{{!!changingStatusId}}"
+          data-template-id="{{item.id}}"
+          bindtap="onToggleTemplateStatus"
+        >
+          {{item.status === "active" ? "停用" : "重新启用"}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{errorMessage && status === 'ready' && !showForm}}" class="feedback">
+    {{errorMessage}}
+  </view>
+</view>

@@ -19,6 +19,15 @@
     </view>
   </view>
 
+  <view wx:if="{{status === 'ready'}}" class="records-tools">
+    <button class="tool-button" bindtap="onOpenTemplates">
+      管理自定义模板
+    </button>
+    <button class="tool-button" bindtap="onOpenDeletedRecords">
+      已删除记录
+    </button>
+  </view>
+
   <view wx:if="{{status === 'loading'}}" class="state-card">
     <view class="state-card__title">正在加载健康记录</view>
     <view class="state-card__description">请稍候</view>
@@ -65,7 +74,12 @@
       class="timeline-item"
     >
       <view class="timeline-item__dot"></view>
-      <view class="record-card">
+      <view
+        id="record-card-{{item.id}}"
+        class="record-card"
+        data-record-id="{{item.id}}"
+        bindtap="onOpenRecord"
+      >
         <view class="record-card__top">
           <view>
             <view class="record-card__template">
@@ -91,6 +105,7 @@
         <view wx:if="{{item.remark}}" class="record-card__remark">
           备注：{{item.remark}}
         </view>
+        <view class="record-card__open">查看与编辑 ›</view>
       </view>
     </view>
   </view>
