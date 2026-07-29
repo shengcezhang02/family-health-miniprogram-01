@@ -1,0 +1,59 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "family_origin_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "originRecordId",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "family_occurred",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "occurredAt",
+            "Direction": "-1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "family_subject_occurred",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "subjectUserId",
+            "Direction": "1"
+          },
+          {
+            "Name": "occurredAt",
+            "Direction": "-1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}

@@ -134,6 +134,34 @@ Page({
     });
   },
 
+  onOpenRecords() {
+    const family = this.data.currentFamily;
+
+    if (!family) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/records/records?familyId=${family.id}&familyName=${encodeURIComponent(
+        family.name,
+      )}`,
+    });
+  },
+
+  onQuickAddRecord() {
+    const family = this.data.currentFamily;
+
+    if (!family) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/record-editor/record-editor?familyId=${family.id}&familyName=${encodeURIComponent(
+        family.name,
+      )}`,
+    });
+  },
+
   onToggleFamilySwitcher() {
     this.setData({
       showFamilySwitcher: !this.data.showFamilySwitcher,

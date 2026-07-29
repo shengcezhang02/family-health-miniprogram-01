@@ -130,6 +130,28 @@
       {{currentFamily.role === "admin" ? "管理员" : "家庭成员"}}
     </view>
 
+    <view class="empty-card empty-card--records">
+      <view class="empty-card__icon">记</view>
+      <view class="empty-card__title">家人的健康记录</view>
+      <view class="empty-card__description">
+        快速记录体温、血压、血糖或用药，并在家庭时间线中查看。
+      </view>
+      <button
+        id="quick-add-record-button"
+        class="primary-button"
+        bindtap="onQuickAddRecord"
+      >
+        快速记录
+      </button>
+      <button
+        id="open-records-button"
+        class="text-button"
+        bindtap="onOpenRecords"
+      >
+        查看健康记录
+      </button>
+    </view>
+
     <view class="empty-card">
       <view class="empty-card__icon">档</view>
       <view class="empty-card__title">维护家人的健康档案</view>

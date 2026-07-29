@@ -1,0 +1,185 @@
+.editor-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 48rpx 36rpx 72rpx;
+  background:
+    radial-gradient(circle at 90% 4%, rgba(105, 185, 151, 0.18), transparent 28%),
+    #f4f7f5;
+}
+
+.editor-header__eyebrow {
+  color: #2f765e;
+  font-size: 24rpx;
+  font-weight: 700;
+  letter-spacing: 3rpx;
+}
+
+.editor-header__title {
+  margin-top: 16rpx;
+  color: #12392c;
+  font-size: 50rpx;
+  font-weight: 760;
+}
+
+.editor-header__description {
+  margin-top: 12rpx;
+  color: #70857d;
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.state-card,
+.form-card {
+  margin-top: 30rpx;
+  padding: 34rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14rpx 42rpx rgba(45, 86, 69, 0.07);
+}
+
+.state-card {
+  margin-top: 60rpx;
+  text-align: center;
+}
+
+.state-card__title,
+.form-card__title {
+  color: #244c3e;
+  font-size: 31rpx;
+  font-weight: 700;
+}
+
+.state-card__description {
+  margin-top: 14rpx;
+  color: #70857d;
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.state-card--error {
+  border: 1rpx solid rgba(179, 78, 73, 0.16);
+}
+
+.field-group + .field-group {
+  margin-top: 30rpx;
+}
+
+.form-card__title + .field-group {
+  margin-top: 26rpx;
+}
+
+.field-label {
+  margin-bottom: 14rpx;
+  color: #45655a;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.picker-value,
+.date-time-value,
+.input-with-unit,
+.remark-input {
+  box-sizing: border-box;
+  border: 2rpx solid #dce8e2;
+  border-radius: 20rpx;
+  background: #fbfdfc;
+}
+
+.picker-value {
+  display: flex;
+  min-height: 88rpx;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24rpx;
+  color: #173b2f;
+  font-size: 28rpx;
+}
+
+.picker-value__arrow {
+  color: #81968e;
+  font-size: 34rpx;
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.field-input {
+  height: 88rpx;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0 24rpx;
+  color: #173b2f;
+  font-size: 29rpx;
+}
+
+.field-unit {
+  padding-right: 24rpx;
+  color: #60776f;
+  font-size: 25rpx;
+}
+
+.date-time-row {
+  display: flex;
+  gap: 18rpx;
+}
+
+.date-time-row picker {
+  flex: 1;
+}
+
+.date-time-row + .field-group {
+  margin-top: 30rpx;
+}
+
+.date-time-value {
+  padding: 24rpx;
+  color: #173b2f;
+  font-size: 27rpx;
+  text-align: center;
+}
+
+.remark-input {
+  width: 100%;
+  min-height: 130rpx;
+  padding: 22rpx 24rpx;
+  color: #173b2f;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+
+.feedback {
+  margin-top: 24rpx;
+  padding: 22rpx 26rpx;
+  border-radius: 18rpx;
+  color: #a14743;
+  font-size: 24rpx;
+  line-height: 1.5;
+  background: #faeceb;
+}
+
+.primary-button,
+.secondary-button {
+  margin-top: 30rpx;
+  border: 0;
+  border-radius: 20rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.primary-button {
+  color: #ffffff;
+  background: #2f765e;
+}
+
+.secondary-button {
+  color: #2f765e;
+  background: #e3f0ea;
+}
+
+.primary-button::after,
+.secondary-button::after {
+  border: 0;
+}

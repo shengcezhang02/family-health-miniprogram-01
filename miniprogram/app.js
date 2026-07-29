@@ -17,14 +17,16 @@ App({
     });
   },
 
-  async callCloudApi(name, action, data) {
+  async callCloudApi(name, action, data, requestId) {
     const response = await wx.cloud.callFunction({
       name,
       data: {
         action,
-        requestId: `${action}-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 10)}`,
+        requestId:
+          requestId ||
+          `${action}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 10)}`,
         data,
       },
     });
@@ -47,5 +49,22 @@ App({
 
   async callProfileApi(action, data) {
     return this.callCloudApi("profile-api", action, data);
+  },
+
+  async callTemplateApi(action, data) {
+    return this.callCloudApi("template-api", action, data);
+  },
+
+  async callHealthItemApi(action, data, requestId) {
+    return this.callCloudApi(
+      "health-item-api",
+      action,
+      data,
+      requestId,
+    );
+  },
+
+  async callQueryApi(action, data) {
+    return this.callCloudApi("query-api", action, data);
   },
 });
