@@ -3,6 +3,7 @@ function createCloudHealthItemStore(db) {
   const memberships = db.collection("family_memberships");
   const templates = db.collection("health_templates");
   const records = db.collection("health_records");
+  const reminders = db.collection("one_time_reminders");
 
   function withoutDocumentId(document) {
     const { _id, ...data } = document;
@@ -65,13 +66,50 @@ function createCloudHealthItemStore(db) {
         };
       }
 
+      let sourceReminder = null;
+      let transactionReminders = null;
+
+      if (shouldRestore && existing.sourceReminderId) {
+        transactionReminders = transaction.collection(
+          "one_time_reminders",
+        );
+        const reminderResult = await transactionReminders
+          .where({
+            _id: existing.sourceReminderId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        sourceReminder = reminderResult.data[0] ?? null;
+
+        if (
+          sourceReminder &&
+          !sourceReminder.deletedAt &&
+          sourceReminder.status === "completed" &&
+          sourceReminder.linkedRecordId !== recordId
+        ) {
+          return {
+            outcome: "reminder-conflict",
+          };
+        }
+      }
+
       const {
         deletedAt: previousDeletedAt,
         deletedByUserId: previousDeletedByUserId,
         ...recordWithoutDeletion
       } = existing;
+      const {
+        sourceReminderId: previousSourceReminderId,
+        ...recordWithoutSourceReminder
+      } = recordWithoutDeletion;
+      const restoredRecordBase =
+        shouldRestore &&
+        (!sourceReminder || sourceReminder.deletedAt)
+          ? recordWithoutSourceReminder
+          : recordWithoutDeletion;
       const updated = {
-        ...recordWithoutDeletion,
+        ...restoredRecordBase,
         ...(shouldRestore
           ? {}
           : {
@@ -86,6 +124,67 @@ function createCloudHealthItemStore(db) {
       await transactionRecords.doc(recordId).set({
         data: withoutDocumentId(updated),
       });
+
+      if (!shouldRestore && existing.sourceReminderId) {
+        transactionReminders = transaction.collection(
+          "one_time_reminders",
+        );
+        const reminderResult = await transactionReminders
+          .where({
+            _id: existing.sourceReminderId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const reminder = reminderResult.data[0] ?? null;
+
+        if (
+          reminder &&
+          !reminder.deletedAt &&
+          reminder.status === "completed" &&
+          reminder.linkedRecordId === recordId
+        ) {
+          const {
+            completedAt,
+            linkedRecordId,
+            ...reminderWithoutCompletion
+          } = reminder;
+          const pendingReminder = {
+            ...reminderWithoutCompletion,
+            status: "pending",
+            updatedByUserId,
+            updatedAt,
+            revision: reminder.revision + 1,
+          };
+          await transactionReminders
+            .doc(existing.sourceReminderId)
+            .set({
+              data: withoutDocumentId(pendingReminder),
+            });
+        }
+      }
+
+      if (
+        shouldRestore &&
+        sourceReminder &&
+        !sourceReminder.deletedAt &&
+        sourceReminder.status === "pending"
+      ) {
+        const completedReminder = {
+          ...sourceReminder,
+          status: "completed",
+          completedAt: updatedAt,
+          linkedRecordId: recordId,
+          updatedByUserId,
+          updatedAt,
+          revision: sourceReminder.revision + 1,
+        };
+        await transactionReminders
+          .doc(existing.sourceReminderId)
+          .set({
+            data: withoutDocumentId(completedReminder),
+          });
+      }
 
       return {
         outcome: "updated",
@@ -142,6 +241,248 @@ function createCloudHealthItemStore(db) {
         return {
           outcome: "created",
           record,
+        };
+      });
+    },
+
+    async createReminder(reminder) {
+      return db.runTransaction(async (transaction) => {
+        const transactionReminders = transaction.collection(
+          "one_time_reminders",
+        );
+        const existingResult = await transactionReminders
+          .where({
+            _id: reminder._id,
+          })
+          .limit(1)
+          .get();
+        const existing = existingResult.data[0] ?? null;
+
+        if (existing) {
+          return {
+            outcome: "replayed",
+            reminder: existing,
+          };
+        }
+
+        await transactionReminders.doc(reminder._id).set({
+          data: withoutDocumentId(reminder),
+        });
+
+        return {
+          outcome: "created",
+          reminder,
+        };
+      });
+    },
+
+    async getReminderById(reminderId) {
+      const result = await reminders.doc(reminderId).get();
+      return result.data ?? null;
+    },
+
+    async checkInReminder({
+      reminderId,
+      familyId,
+      expectedRevision,
+      record,
+      updatedByUserId,
+      completedAt,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const transactionMemberships = transaction.collection(
+          "family_memberships",
+        );
+        const callerMembershipResult = await transactionMemberships
+          .where({
+            familyId,
+            userId: updatedByUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!callerMembershipResult.data[0]) {
+          return {
+            outcome: "permission-denied",
+          };
+        }
+
+        const transactionReminders = transaction.collection(
+          "one_time_reminders",
+        );
+        const reminderResult = await transactionReminders
+          .where({
+            _id: reminderId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const reminder = reminderResult.data[0] ?? null;
+
+        if (!reminder || reminder.deletedAt) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        const subjectMembershipResult = await transactionMemberships
+          .where({
+            familyId,
+            userId: reminder.subjectUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!subjectMembershipResult.data[0]) {
+          return {
+            outcome: "permission-denied",
+          };
+        }
+
+        const transactionRecords =
+          transaction.collection("health_records");
+
+        if (
+          reminder.status === "completed" &&
+          reminder.linkedRecordId
+        ) {
+          const linkedRecordResult = await transactionRecords
+            .where({
+              _id: reminder.linkedRecordId,
+              familyId,
+            })
+            .limit(1)
+            .get();
+
+          return linkedRecordResult.data[0]
+            ? {
+                outcome: "replayed",
+                reminder,
+                record: linkedRecordResult.data[0],
+              }
+            : {
+                outcome: "not-found",
+              };
+        }
+
+        if (reminder.revision !== expectedRevision) {
+          return {
+            outcome: "revision-conflict",
+          };
+        }
+
+        const completedReminder = {
+          ...reminder,
+          status: "completed",
+          completedAt,
+          linkedRecordId: record._id,
+          updatedByUserId,
+          updatedAt: completedAt,
+          revision: reminder.revision + 1,
+        };
+
+        await transactionRecords.doc(record._id).set({
+          data: withoutDocumentId(record),
+        });
+        await transactionReminders.doc(reminderId).set({
+          data: withoutDocumentId(completedReminder),
+        });
+
+        return {
+          outcome: "completed",
+          reminder: completedReminder,
+          record,
+        };
+      });
+    },
+
+    async updateReminder({
+      reminderId,
+      familyId,
+      expectedRevision,
+      values,
+      remark,
+      plannedAt,
+      notificationTimes,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const membershipResult = await transaction
+          .collection("family_memberships")
+          .where({
+            familyId,
+            userId: updatedByUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!membershipResult.data[0]) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        const transactionReminders = transaction.collection(
+          "one_time_reminders",
+        );
+        const reminderResult = await transactionReminders
+          .where({
+            _id: reminderId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const existing = reminderResult.data[0] ?? null;
+
+        if (!existing || existing.deletedAt) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (existing.status !== "pending") {
+          return {
+            outcome: "already-completed",
+          };
+        }
+
+        if (existing.revision !== expectedRevision) {
+          return {
+            outcome: "revision-conflict",
+          };
+        }
+
+        const {
+          remark: previousRemark,
+          nextNotificationAt: previousNextNotificationAt,
+          ...reminderWithoutOptionalFields
+        } = existing;
+        const updated = {
+          ...reminderWithoutOptionalFields,
+          values,
+          ...(remark ? { remark } : {}),
+          plannedAt,
+          notificationTimes,
+          ...(notificationTimes[0]
+            ? { nextNotificationAt: notificationTimes[0] }
+            : {}),
+          notificationAttemptCount: 0,
+          updatedByUserId,
+          updatedAt,
+          revision: existing.revision + 1,
+        };
+
+        await transactionReminders.doc(reminderId).set({
+          data: withoutDocumentId(updated),
+        });
+
+        return {
+          outcome: "updated",
+          reminder: updated,
         };
       });
     },

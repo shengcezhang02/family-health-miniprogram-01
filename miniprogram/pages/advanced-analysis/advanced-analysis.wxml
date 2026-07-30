@@ -1,0 +1,37 @@
+<view class="analysis-shell">
+  <view class="analysis-header">
+    <view class="analysis-header__eyebrow">INSIGHTS · {{familyName || "当前家庭"}}</view>
+    <view class="analysis-header__title">进阶分析</view>
+    <view class="analysis-header__description">
+      使用系统预设方法整理血压、血糖和用药完成数据，不构成医疗诊断。
+    </view>
+  </view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    <view class="state-card__title">正在准备分析入口</view>
+  </view>
+
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <view wx:else class="analysis-list">
+    <button
+      wx:for="{{entries}}"
+      wx:key="id"
+      id="analysis-entry-{{item.id}}"
+      class="analysis-card analysis-card--{{index}}"
+      data-entry-id="{{item.id}}"
+      bindtap="onOpenEntry"
+    >
+      <view class="analysis-card__body">
+        <view class="analysis-card__title">{{item.title}}</view>
+        <view class="analysis-card__description">{{item.description}}</view>
+        <view class="analysis-card__status">后续里程碑</view>
+      </view>
+      <view class="analysis-card__arrow">›</view>
+    </button>
+  </view>
+</view>

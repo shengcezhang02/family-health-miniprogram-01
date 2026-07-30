@@ -50,6 +50,7 @@ Page({
   },
 
   onLoad(options) {
+    this._openCreateOnReady = options.mode === "create";
     this.setData({
       familyId: options.familyId || "",
       familyName: options.familyName
@@ -93,6 +94,10 @@ Page({
           (template) => template.sourceType === "custom",
         ),
       });
+      if (this._openCreateOnReady) {
+        this._openCreateOnReady = false;
+        this.onCreateTemplate();
+      }
     } catch (error) {
       this.setData({
         status: "error",

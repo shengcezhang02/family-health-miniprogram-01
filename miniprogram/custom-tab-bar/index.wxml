@@ -1,0 +1,57 @@
+<view
+  wx:if="{{showQuickAdd}}"
+  id="quick-add-overlay"
+  class="quick-add-overlay"
+  bindtap="onCloseQuickAdd"
+></view>
+<view wx:if="{{showQuickAdd}}" class="quick-add-menu">
+  <view class="quick-add-menu__header">
+    <view>
+      <view class="quick-add-menu__title">快速添加</view>
+      <view class="quick-add-menu__description">选择接下来要做的事</view>
+    </view>
+  </view>
+  <button
+    wx:for="{{quickAddActions}}"
+    wx:key="id"
+    id="quick-add-action-{{item.id}}"
+    class="quick-add-menu__item"
+    data-action-id="{{item.id}}"
+    bindtap="onChooseQuickAdd"
+  >
+    <view class="quick-add-menu__item-title">{{item.label}}</view>
+    <view class="quick-add-menu__item-arrow">›</view>
+  </button>
+</view>
+
+<view class="main-tab-bar">
+  <view
+    wx:for="{{items}}"
+    wx:key="id"
+    id="main-nav-{{item.id}}"
+    class="main-tab-bar__item {{selected === index ? 'main-tab-bar__item--selected' : ''}} {{item.kind === 'action' ? 'main-tab-bar__item--action' : ''}}"
+    data-index="{{index}}"
+    bindtap="onTapItem"
+  >
+    <view wx:if="{{item.kind === 'action'}}" class="main-tab-bar__plus">
+      <view class="main-tab-bar__plus-ring"></view>
+      <view class="main-tab-bar__plus-surface"></view>
+      <view
+        class="main-tab-bar__plus-glyph {{showQuickAdd ? 'main-tab-bar__plus-glyph--open' : ''}}"
+      >
+        <view class="main-tab-bar__plus-line main-tab-bar__plus-line--horizontal"></view>
+        <view class="main-tab-bar__plus-line main-tab-bar__plus-line--vertical"></view>
+      </view>
+    </view>
+    <view wx:else class="main-tab-bar__icon">
+      <image
+        class="main-tab-bar__icon-image"
+        src="{{item.icon}}"
+        mode="aspectFit"
+      />
+    </view>
+    <view wx:if="{{item.kind !== 'action'}}" class="main-tab-bar__label">
+      {{item.label}}
+    </view>
+  </view>
+</view>

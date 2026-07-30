@@ -1,0 +1,273 @@
+.daily-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 42rpx 36rpx calc(220rpx + env(safe-area-inset-bottom));
+  background: #f6f3ee;
+}
+
+.daily-header__eyebrow {
+  color: #d95c4f;
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.health-card__top,
+.quick-actions,
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.daily-header__title {
+  margin-top: 10rpx;
+  color: #202825;
+  font-size: 52rpx;
+  font-weight: 750;
+}
+
+.daily-header__description {
+  margin-top: 8rpx;
+  color: #66716d;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.date-navigator {
+  display: flex;
+  align-items: stretch;
+  margin-top: 34rpx;
+  overflow: hidden;
+  border: 1rpx solid #d8d3cb;
+  border-radius: 16rpx;
+  background: #ffffff;
+  box-shadow: 0 8rpx 22rpx rgba(37, 45, 41, 0.06);
+}
+
+.date-navigator__side {
+  display: flex;
+  min-width: 0;
+  width: 136rpx;
+  flex: 0 0 136rpx;
+  min-height: 106rpx;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 7rpx;
+  margin: 0;
+  padding: 0 10rpx;
+  border: 0;
+  border-radius: 0;
+  color: #66716d;
+  font-size: 21rpx;
+  background: #ffffff;
+}
+
+.date-navigator__side::after,
+.today-button::after {
+  border: 0;
+}
+
+.date-navigator__side--next {
+  justify-content: center;
+}
+
+.date-navigator__arrow {
+  color: #d95c4f;
+  font-size: 38rpx;
+  line-height: 1;
+}
+
+.date-navigator__picker {
+  min-width: 0;
+  flex: 1;
+  border-right: 1rpx solid #e2ddd5;
+  border-left: 1rpx solid #e2ddd5;
+}
+
+.date-navigator__selected {
+  display: flex;
+  min-height: 106rpx;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16rpx 0 22rpx;
+}
+
+.date-navigator__copy {
+  min-width: 0;
+}
+
+.date-navigator__title {
+  color: #202825;
+  font-size: 27rpx;
+  font-weight: 750;
+}
+
+.date-navigator__subtitle {
+  margin-top: 4rpx;
+  color: #7c8581;
+  font-size: 19rpx;
+  white-space: nowrap;
+}
+
+.date-navigator__calendar {
+  display: flex;
+  width: 58rpx;
+  height: 58rpx;
+  flex: 0 0 58rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 700;
+  background: #d95c4f;
+}
+
+.today-button {
+  width: auto;
+  margin: 14rpx 0 0 auto;
+  padding: 8rpx 18rpx;
+  border: 0;
+  border-radius: 10rpx;
+  color: #2e6f68;
+  font-size: 21rpx;
+  line-height: 1.5;
+  background: #e7f0ed;
+}
+
+.state-card,
+.empty-card,
+.health-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+  border: 1rpx solid #e2ddd5;
+  border-radius: 16rpx;
+  background: #ffffff;
+}
+
+.state-card {
+  margin-top: 60rpx;
+  text-align: center;
+}
+
+.state-card__title,
+.section__title,
+.health-card__title {
+  color: #202825;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.state-card__description {
+  margin-top: 14rpx;
+  color: #66716d;
+  font-size: 25rpx;
+}
+
+.state-card--error {
+  border: 1rpx solid rgba(179, 78, 73, 0.16);
+}
+
+.quick-actions {
+  margin-top: 24rpx;
+}
+
+.primary-button,
+.secondary-button,
+.card-button {
+  margin: 0;
+  border: 0;
+  border-radius: 12rpx;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.primary-button,
+.secondary-button {
+  flex: 1;
+}
+
+.primary-button,
+.card-button--primary {
+  color: #ffffff;
+  background: #d95c4f;
+}
+
+.secondary-button,
+.card-button {
+  color: #2e6f68;
+  background: #e7f0ed;
+}
+
+.primary-button::after,
+.secondary-button::after,
+.card-button::after {
+  border: 0;
+}
+
+.section {
+  margin-top: 38rpx;
+}
+
+.empty-card {
+  color: #66716d;
+  font-size: 25rpx;
+  text-align: center;
+}
+
+.health-card__subject,
+.health-card__time,
+.field-value,
+.health-card__remark {
+  color: #66716d;
+  font-size: 24rpx;
+}
+
+.health-card__subject {
+  margin-top: 6rpx;
+}
+
+.status-badge {
+  padding: 9rpx 16rpx;
+  border-radius: 999rpx;
+  color: #8a5b19;
+  font-size: 22rpx;
+  font-weight: 700;
+  background: #f6edda;
+}
+
+.status-badge--completed {
+  color: #2e6f68;
+  background: #e7f0ed;
+}
+
+.health-card__time,
+.field-list,
+.health-card__remark {
+  margin-top: 18rpx;
+}
+
+.field-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 20rpx;
+}
+
+.health-card__remark {
+  padding-top: 18rpx;
+  border-top: 1rpx solid #e5e0d8;
+  line-height: 1.6;
+}
+
+.card-actions {
+  justify-content: flex-start;
+  margin-top: 22rpx;
+}
+
+.card-button {
+  min-width: 150rpx;
+}

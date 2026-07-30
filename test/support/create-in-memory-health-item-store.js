@@ -3,6 +3,7 @@ function createInMemoryHealthItemStore({
   memberships = [],
   templates = [],
   records = [],
+  reminders = [],
 } = {}) {
   const usersByOpenId = new Map(
     users.map((user) => [user.wechatOpenId, structuredClone(user)]),
@@ -20,6 +21,12 @@ function createInMemoryHealthItemStore({
     templates.map((template) => [
       template._id,
       structuredClone(template),
+    ]),
+  );
+  const remindersById = new Map(
+    reminders.map((reminder) => [
+      reminder._id,
+      structuredClone(reminder),
     ]),
   );
 
@@ -49,13 +56,37 @@ function createInMemoryHealthItemStore({
       };
     }
 
+    const sourceReminder = existing.sourceReminderId
+      ? remindersById.get(existing.sourceReminderId)
+      : null;
+
+    if (
+      shouldRestore &&
+      sourceReminder &&
+      !sourceReminder.deletedAt &&
+      sourceReminder.status === "completed" &&
+      sourceReminder.linkedRecordId !== recordId
+    ) {
+      return {
+        outcome: "reminder-conflict",
+      };
+    }
+
     const {
       deletedAt: previousDeletedAt,
       deletedByUserId: previousDeletedByUserId,
       ...recordWithoutDeletion
     } = existing;
+    const {
+      sourceReminderId: previousSourceReminderId,
+      ...recordWithoutSourceReminder
+    } = recordWithoutDeletion;
+    const restoredRecordBase =
+      shouldRestore && (!sourceReminder || sourceReminder.deletedAt)
+        ? recordWithoutSourceReminder
+        : recordWithoutDeletion;
     const updated = {
-      ...recordWithoutDeletion,
+      ...restoredRecordBase,
       ...(shouldRestore
         ? {}
         : {
@@ -67,6 +98,47 @@ function createInMemoryHealthItemStore({
       revision: existing.revision + 1,
     };
     recordsById.set(recordId, updated);
+
+    if (!shouldRestore && existing.sourceReminderId) {
+      const reminder = remindersById.get(existing.sourceReminderId);
+
+      if (
+        reminder &&
+        !reminder.deletedAt &&
+        reminder.status === "completed" &&
+        reminder.linkedRecordId === recordId
+      ) {
+        const {
+          completedAt,
+          linkedRecordId,
+          ...reminderWithoutCompletion
+        } = reminder;
+        remindersById.set(existing.sourceReminderId, {
+          ...reminderWithoutCompletion,
+          status: "pending",
+          updatedByUserId,
+          updatedAt,
+          revision: reminder.revision + 1,
+        });
+      }
+    }
+
+    if (
+      shouldRestore &&
+      sourceReminder &&
+      !sourceReminder.deletedAt &&
+      sourceReminder.status === "pending"
+    ) {
+      remindersById.set(existing.sourceReminderId, {
+        ...sourceReminder,
+        status: "completed",
+        completedAt: updatedAt,
+        linkedRecordId: recordId,
+        updatedByUserId,
+        updatedAt,
+        revision: sourceReminder.revision + 1,
+      });
+    }
 
     return {
       outcome: "updated",
@@ -111,6 +183,165 @@ function createInMemoryHealthItemStore({
       return {
         outcome: "created",
         record: structuredClone(record),
+      };
+    },
+
+    async createReminder(reminder) {
+      const existing = remindersById.get(reminder._id);
+
+      if (existing) {
+        return {
+          outcome: "replayed",
+          reminder: structuredClone(existing),
+        };
+      }
+
+      remindersById.set(reminder._id, structuredClone(reminder));
+      return {
+        outcome: "created",
+        reminder: structuredClone(reminder),
+      };
+    },
+
+    async getReminderById(reminderId) {
+      return structuredClone(remindersById.get(reminderId) ?? null);
+    },
+
+    async checkInReminder({
+      reminderId,
+      familyId,
+      expectedRevision,
+      record,
+      updatedByUserId,
+      completedAt,
+    }) {
+      const reminder = remindersById.get(reminderId);
+      const callerMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === updatedByUserId &&
+          membership.status === "active",
+      );
+      const subjectMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === reminder?.subjectUserId &&
+          membership.status === "active",
+      );
+
+      if (!callerMembership || !subjectMembership) {
+        return {
+          outcome: "permission-denied",
+        };
+      }
+
+      if (
+        !reminder ||
+        reminder.familyId !== familyId ||
+        reminder.deletedAt
+      ) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (
+        reminder.status === "completed" &&
+        reminder.linkedRecordId
+      ) {
+        return {
+          outcome: "replayed",
+          reminder: structuredClone(reminder),
+          record: structuredClone(
+            recordsById.get(reminder.linkedRecordId),
+          ),
+        };
+      }
+
+      if (reminder.revision !== expectedRevision) {
+        return {
+          outcome: "revision-conflict",
+        };
+      }
+
+      recordsById.set(record._id, structuredClone(record));
+      const completedReminder = {
+        ...reminder,
+        status: "completed",
+        completedAt,
+        linkedRecordId: record._id,
+        updatedByUserId,
+        updatedAt: completedAt,
+        revision: reminder.revision + 1,
+      };
+      remindersById.set(reminderId, completedReminder);
+
+      return {
+        outcome: "completed",
+        reminder: structuredClone(completedReminder),
+        record: structuredClone(record),
+      };
+    },
+
+    async updateReminder({
+      reminderId,
+      familyId,
+      expectedRevision,
+      values,
+      remark,
+      plannedAt,
+      notificationTimes,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      const existing = remindersById.get(reminderId);
+
+      if (
+        !existing ||
+        existing.familyId !== familyId ||
+        existing.deletedAt
+      ) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (existing.status !== "pending") {
+        return {
+          outcome: "already-completed",
+        };
+      }
+
+      if (existing.revision !== expectedRevision) {
+        return {
+          outcome: "revision-conflict",
+        };
+      }
+
+      const { remark: previousRemark, ...reminderWithoutRemark } =
+        existing;
+      const updated = {
+        ...reminderWithoutRemark,
+        values: structuredClone(values),
+        ...(remark ? { remark } : {}),
+        plannedAt,
+        notificationTimes: structuredClone(notificationTimes),
+        ...(notificationTimes[0]
+          ? { nextNotificationAt: notificationTimes[0] }
+          : {}),
+        updatedByUserId,
+        updatedAt,
+        revision: existing.revision + 1,
+      };
+
+      if (!notificationTimes[0]) {
+        delete updated.nextNotificationAt;
+      }
+
+      remindersById.set(reminderId, updated);
+      return {
+        outcome: "updated",
+        reminder: structuredClone(updated),
       };
     },
 
@@ -181,6 +412,12 @@ function createInMemoryHealthItemStore({
     inspectRecords() {
       return [...recordsById.values()].map((record) =>
         structuredClone(record),
+      );
+    },
+
+    inspectReminders() {
+      return [...remindersById.values()].map((reminder) =>
+        structuredClone(reminder),
       );
     },
   };

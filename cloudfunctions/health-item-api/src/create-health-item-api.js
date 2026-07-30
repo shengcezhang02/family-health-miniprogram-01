@@ -35,9 +35,54 @@ function toRecordSummary(record) {
     summary.remark = record.remark;
   }
 
+  if (record.sourceReminderId) {
+    summary.sourceReminderId = record.sourceReminderId;
+  }
+
   if (record.deletedAt) {
     summary.deletedAt = toIsoString(record.deletedAt);
     summary.deletedByUserId = record.deletedByUserId;
+  }
+
+  return summary;
+}
+
+function toReminderSummary(reminder) {
+  const summary = {
+    id: reminder._id,
+    familyId: reminder.familyId,
+    subjectUserId: reminder.subjectUserId,
+    sourceTemplateType: reminder.sourceTemplateType,
+    sourceTemplateId: reminder.sourceTemplateId,
+    templateNameSnapshot: reminder.templateNameSnapshot,
+    fieldSchemaSnapshot: reminder.fieldSchemaSnapshot.map((field) => ({
+      ...field,
+    })),
+    values: { ...reminder.values },
+    plannedAt: toIsoString(reminder.plannedAt),
+    notificationTimes: reminder.notificationTimes.map(toIsoString),
+    status: reminder.status,
+    creationSource: reminder.creationSource,
+    createdByUserId: reminder.createdByUserId,
+    updatedByUserId: reminder.updatedByUserId,
+    revision: reminder.revision,
+    createdAt: toIsoString(reminder.createdAt),
+    updatedAt: toIsoString(reminder.updatedAt),
+  };
+
+  if (reminder.remark) {
+    summary.remark = reminder.remark;
+  }
+
+  if (reminder.nextNotificationAt) {
+    summary.nextNotificationAt = toIsoString(
+      reminder.nextNotificationAt,
+    );
+  }
+
+  if (reminder.completedAt) {
+    summary.completedAt = toIsoString(reminder.completedAt);
+    summary.linkedRecordId = reminder.linkedRecordId;
   }
 
   return summary;
@@ -267,6 +312,8 @@ function createHealthItemApi({
   healthItemStore,
   getSystemTemplate,
   createRecordId,
+  createReminderId,
+  createCheckInRecordId,
   now,
   reportError = () => {},
 } = {}) {
@@ -349,12 +396,396 @@ function createHealthItemApi({
       );
     }
 
+    if (result.outcome === "reminder-conflict") {
+      throw new ApiError(
+        "REMINDER_LINK_CONFLICT",
+        "原提醒已经关联新的打卡记录，请先处理新记录",
+      );
+    }
+
     return {
       record: toRecordSummary(result.record),
     };
   }
 
+  async function updateReminder(data) {
+    if (
+      typeof data.reminderId !== "string" ||
+      !data.reminderId ||
+      !Number.isInteger(data.expectedRevision) ||
+      data.expectedRevision < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请提供提醒和当前版本",
+      );
+    }
+
+    const lockedFields = [
+      "familyId",
+      "subjectUserId",
+      "sourceTemplateType",
+      "sourceTemplateId",
+      "templateNameSnapshot",
+      "fieldSchemaSnapshot",
+      "status",
+    ];
+    if (lockedFields.some((field) => Object.hasOwn(data, field))) {
+      throw new ApiError(
+        "LOCKED_FIELDS_CANNOT_CHANGE",
+        "提醒保存后不能更换所属人、模板、表单结构或完成状态",
+      );
+    }
+
+    const [caller, reminder] = await Promise.all([
+      getCaller(),
+      healthItemStore.getReminderById(data.reminderId),
+    ]);
+
+    if (!reminder || reminder.deletedAt) {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个提醒不存在或已删除",
+      );
+    }
+
+    const membership = await healthItemStore.getActiveMembership(
+      reminder.familyId,
+      caller._id,
+    );
+
+    if (!membership) {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以修改提醒",
+      );
+    }
+
+    if (reminder.status !== "pending") {
+      throw new ApiError(
+        "REMINDER_ALREADY_COMPLETED",
+        "已打卡提醒不能修改，请编辑关联记录",
+      );
+    }
+
+    const input = validateRecordInput(
+      {
+        ...data,
+        familyId: reminder.familyId,
+        subjectUserId: reminder.subjectUserId,
+        sourceTemplateId: reminder.sourceTemplateId,
+        occurredAt: data.plannedAt,
+      },
+      {
+        fields: reminder.fieldSchemaSnapshot.map((field) => ({
+          ...field,
+          required: false,
+        })),
+      },
+    );
+    const notificationTimes = Array.isArray(data.notificationTimes)
+      ? data.notificationTimes.map((value) => new Date(value))
+      : [];
+
+    if (
+      notificationTimes.some((value) =>
+        Number.isNaN(value.getTime()),
+      )
+    ) {
+      throw new ApiError("INVALID_ARGUMENT", "通知时间不正确");
+    }
+
+    notificationTimes.sort(
+      (left, right) => left.getTime() - right.getTime(),
+    );
+    const result = await healthItemStore.updateReminder({
+      reminderId: reminder._id,
+      familyId: reminder.familyId,
+      expectedRevision: data.expectedRevision,
+      values: input.values,
+      remark: input.remark,
+      plannedAt: input.occurredAt,
+      notificationTimes,
+      updatedByUserId: caller._id,
+      updatedAt: now(),
+    });
+
+    if (result.outcome === "not-found") {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个提醒不存在或已删除",
+      );
+    }
+
+    if (result.outcome === "already-completed") {
+      throw new ApiError(
+        "REMINDER_ALREADY_COMPLETED",
+        "已打卡提醒不能修改，请编辑关联记录",
+      );
+    }
+
+    if (result.outcome === "revision-conflict") {
+      throw new ApiError(
+        "REVISION_CONFLICT",
+        "提醒已被其他人修改，请刷新后重试",
+      );
+    }
+
+    return {
+      reminder: toReminderSummary(result.reminder),
+    };
+  }
+
   const actions = {
+    async checkInReminder(data, request) {
+      if (
+        typeof request.requestId !== "string" ||
+        !request.requestId.trim() ||
+        typeof data.reminderId !== "string" ||
+        !data.reminderId ||
+        !Number.isInteger(data.expectedRevision) ||
+        data.expectedRevision < 1
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请提供提醒、当前版本和请求编号",
+        );
+      }
+
+      const [caller, reminder] = await Promise.all([
+        getCaller(),
+        healthItemStore.getReminderById(data.reminderId),
+      ]);
+
+      if (!reminder || reminder.deletedAt) {
+        throw new ApiError(
+          "HEALTH_ITEM_NOT_FOUND",
+          "这个提醒不存在或已删除",
+        );
+      }
+
+      const [callerMembership, subjectMembership] = await Promise.all([
+        healthItemStore.getActiveMembership(
+          reminder.familyId,
+          caller._id,
+        ),
+        healthItemStore.getActiveMembership(
+          reminder.familyId,
+          reminder.subjectUserId,
+        ),
+      ]);
+
+      if (!callerMembership || !subjectMembership) {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以完成提醒",
+        );
+      }
+
+      const input = validateRecordInput(
+        {
+          ...data,
+          familyId: reminder.familyId,
+          subjectUserId: reminder.subjectUserId,
+          sourceTemplateId: reminder.sourceTemplateId,
+          values: {
+            ...reminder.values,
+            ...(data.values ?? {}),
+          },
+        },
+        {
+          fields: reminder.fieldSchemaSnapshot,
+        },
+      );
+      const recordId = createCheckInRecordId({
+        reminderId: reminder._id,
+      });
+      const timestamp = now();
+      const result = await healthItemStore.checkInReminder({
+        reminderId: reminder._id,
+        familyId: reminder.familyId,
+        expectedRevision: data.expectedRevision,
+        record: {
+          _id: recordId,
+          familyId: reminder.familyId,
+          subjectUserId: reminder.subjectUserId,
+          sourceTemplateType: reminder.sourceTemplateType,
+          sourceTemplateId: reminder.sourceTemplateId,
+          templateNameSnapshot: reminder.templateNameSnapshot,
+          fieldSchemaSnapshot: reminder.fieldSchemaSnapshot.map(
+            (field) => ({
+              ...field,
+            }),
+          ),
+          values: input.values,
+          ...(input.remark ? { remark: input.remark } : {}),
+          occurredAt: input.occurredAt,
+          recordSource: "reminder_check_in",
+          sourceReminderId: reminder._id,
+          createdByUserId: caller._id,
+          updatedByUserId: caller._id,
+          revision: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          originRecordId: recordId,
+        },
+        updatedByUserId: caller._id,
+        completedAt: timestamp,
+      });
+
+      if (result.outcome === "permission-denied") {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以完成提醒",
+        );
+      }
+
+      if (result.outcome === "not-found") {
+        throw new ApiError(
+          "HEALTH_ITEM_NOT_FOUND",
+          "这个提醒不存在或已删除",
+        );
+      }
+
+      if (result.outcome === "revision-conflict") {
+        throw new ApiError(
+          "REVISION_CONFLICT",
+          "提醒已被其他人修改，请刷新后重试",
+        );
+      }
+
+      return {
+        reminder: toReminderSummary(result.reminder),
+        record: toRecordSummary(result.record),
+        replayed: result.outcome === "replayed",
+      };
+    },
+
+    async createReminder(data, request) {
+      if (
+        typeof request.requestId !== "string" ||
+        !request.requestId.trim()
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "缺少本次保存的请求编号，请重试",
+        );
+      }
+
+      const sourceTemplateType =
+        data.sourceTemplateType === undefined
+          ? "system"
+          : data.sourceTemplateType;
+
+      if (
+        sourceTemplateType !== "system" &&
+        sourceTemplateType !== "custom"
+      ) {
+        throw new ApiError("INVALID_ARGUMENT", "模板类型不正确");
+      }
+
+      const caller = await getCaller();
+      const [callerMembership, subjectMembership] = await Promise.all([
+        healthItemStore.getActiveMembership(data.familyId, caller._id),
+        healthItemStore.getActiveMembership(
+          data.familyId,
+          data.subjectUserId,
+        ),
+      ]);
+
+      if (!callerMembership || !subjectMembership) {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只能为当前家庭的有效成员创建提醒",
+        );
+      }
+
+      const sourceTemplate =
+        sourceTemplateType === "system"
+          ? getSystemTemplate(data.sourceTemplateId)
+          : await healthItemStore.getCustomTemplate(
+              data.familyId,
+              data.sourceTemplateId,
+            );
+
+      if (!sourceTemplate || sourceTemplate.status === "inactive") {
+        throw new ApiError(
+          "TEMPLATE_NOT_FOUND",
+          "这个模板不存在或已停用",
+        );
+      }
+
+      const activeTemplate = toActiveTemplate(sourceTemplate);
+      const prepared = appendTemporaryFields(data, activeTemplate);
+      const template = prepared.template;
+      const input = validateRecordInput(
+        {
+          ...data,
+          occurredAt: data.plannedAt,
+          values: prepared.values,
+        },
+        {
+          ...template,
+          fields: template.fields.map((field) => ({
+            ...field,
+            required: false,
+          })),
+        },
+      );
+      const notificationTimes = Array.isArray(data.notificationTimes)
+        ? data.notificationTimes.map((value) => new Date(value))
+        : [];
+
+      if (
+        notificationTimes.some((value) =>
+          Number.isNaN(value.getTime()),
+        )
+      ) {
+        throw new ApiError("INVALID_ARGUMENT", "通知时间不正确");
+      }
+
+      notificationTimes.sort(
+        (left, right) => left.getTime() - right.getTime(),
+      );
+      const reminderId = createReminderId({
+        callerUserId: caller._id,
+        requestId: request.requestId,
+      });
+      const timestamp = now();
+      const result = await healthItemStore.createReminder({
+        _id: reminderId,
+        familyId: data.familyId,
+        subjectUserId: data.subjectUserId,
+        sourceTemplateType,
+        sourceTemplateId: template.id,
+        templateNameSnapshot: template.name,
+        fieldSchemaSnapshot: template.fields.map((field) => ({
+          ...field,
+        })),
+        values: input.values,
+        ...(input.remark ? { remark: input.remark } : {}),
+        plannedAt: input.occurredAt,
+        notificationTimes,
+        ...(notificationTimes[0]
+          ? { nextNotificationAt: notificationTimes[0] }
+          : {}),
+        notificationAttemptCount: 0,
+        status: "pending",
+        creationSource: "manual",
+        dedupKey: `item:${reminderId}`,
+        createdByUserId: caller._id,
+        updatedByUserId: caller._id,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+
+      return {
+        reminder: toReminderSummary(result.reminder),
+        replayed: result.outcome === "replayed",
+      };
+    },
+
     async createRecord(data, request) {
       if (
         typeof request.requestId !== "string" ||
@@ -453,6 +884,36 @@ function createHealthItemApi({
     },
 
     async getHealthItem(data) {
+      if (typeof data.reminderId === "string" && data.reminderId) {
+        const [caller, reminder] = await Promise.all([
+          getCaller(),
+          healthItemStore.getReminderById(data.reminderId),
+        ]);
+
+        if (!reminder || reminder.deletedAt) {
+          throw new ApiError(
+            "HEALTH_ITEM_NOT_FOUND",
+            "这个提醒不存在或已删除",
+          );
+        }
+
+        const membership = await healthItemStore.getActiveMembership(
+          reminder.familyId,
+          caller._id,
+        );
+
+        if (!membership) {
+          throw new ApiError(
+            "HEALTH_ITEM_ACCESS_DENIED",
+            "只有当前家庭的有效成员可以查看提醒",
+          );
+        }
+
+        return {
+          reminder: toReminderSummary(reminder),
+        };
+      }
+
       if (typeof data.recordId !== "string" || !data.recordId) {
         throw new ApiError("INVALID_ARGUMENT", "请选择要查看的记录");
       }
@@ -484,6 +945,10 @@ function createHealthItemApi({
     },
 
     async updateHealthItem(data) {
+      if (data.reminderId) {
+        return updateReminder(data);
+      }
+
       if (
         typeof data.recordId !== "string" ||
         !data.recordId ||

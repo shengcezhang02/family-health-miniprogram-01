@@ -1,9 +1,9 @@
 <view class="editor-shell">
   <view class="editor-header">
     <view class="editor-header__eyebrow">{{familyName}}</view>
-    <view class="editor-header__title">快速记录</view>
+    <view class="editor-header__title">{{pageTitle}}</view>
     <view class="editor-header__description">
-      选择记录对象和模板，只填写当前需要的内容。
+      {{pageDescription}}
     </view>
   </view>
 
@@ -32,15 +32,48 @@
   </view>
 
   <view wx:else>
+    <view wx:if="{{showModeSelector}}" class="form-card">
+      <view class="field-label">事项形式</view>
+      <view class="mode-selector">
+        <button
+          id="health-item-mode-record"
+          class="mode-selector__button {{mode === 'record' ? 'mode-selector__button--selected' : ''}}"
+          data-mode="record"
+          bindtap="onModeSelect"
+        >
+          记录
+        </button>
+        <button
+          id="health-item-mode-reminder"
+          class="mode-selector__button {{mode === 'reminder' ? 'mode-selector__button--selected' : ''}}"
+          data-mode="reminder"
+          bindtap="onModeSelect"
+        >
+          一次性提醒
+        </button>
+        <button
+          id="health-item-mode-recurring"
+          class="mode-selector__button mode-selector__button--future"
+          data-mode="recurring"
+          bindtap="onModeSelect"
+        >
+          周期提醒
+          <text class="mode-selector__badge">M7</text>
+        </button>
+      </view>
+    </view>
+
     <view class="form-card">
       <view class="field-group">
-        <view class="field-label">记录谁的健康情况</view>
+        <view class="field-label">
+          {{mode === "reminder" ? "提醒谁" : "记录谁的健康情况"}}
+        </view>
         <picker
           id="record-member-picker"
           range="{{members}}"
           range-key="displayLabel"
           value="{{selectedMemberIndex}}"
-          disabled="{{saving}}"
+          disabled="{{saving || reminderId}}"
           bindchange="onMemberChange"
         >
           <view class="picker-value">
@@ -53,13 +86,13 @@
       </view>
 
       <view class="field-group">
-        <view class="field-label">记录类型</view>
+        <view class="field-label">健康项目</view>
         <picker
           id="record-template-picker"
           range="{{templates}}"
           range-key="name"
           value="{{selectedTemplateIndex}}"
-          disabled="{{saving}}"
+          disabled="{{saving || reminderId}}"
           bindchange="onTemplateChange"
         >
           <view class="picker-value">
@@ -78,7 +111,7 @@
         class="field-group"
       >
         <view class="field-label">
-          {{item.label}}{{item.required ? "" : "（选填）"}}
+          {{item.label}}{{mode === "reminder" ? "（可留到打卡时填写）" : (item.required ? "" : "（选填）")}}
         </view>
         <view class="input-with-unit">
           <input
@@ -127,7 +160,7 @@
     </view>
 
     <view class="form-card">
-      <view class="field-label">发生时间</view>
+      <view class="field-label">{{timeLabel}}</view>
       <view class="date-time-row">
         <picker
           mode="date"
@@ -147,8 +180,62 @@
         </picker>
       </view>
 
+      <view wx:if="{{mode === 'reminder'}}" class="field-group">
+        <view class="field-label">通知时间（选填，可添加多个）</view>
+        <view class="form-hint">
+          计划时间表示事项何时发生；通知时间表示何时提醒你。留空也能在每日健康中查看。
+        </view>
+        <view
+          wx:for="{{notificationTimeRows}}"
+          wx:key="index"
+          class="notification-time"
+        >
+          <view class="date-time-row">
+            <picker
+              mode="date"
+              value="{{item.date}}"
+              disabled="{{saving}}"
+              data-index="{{index}}"
+              bindchange="onNotificationDateChange"
+            >
+              <view class="date-time-value">{{item.date}}</view>
+            </picker>
+            <picker
+              mode="time"
+              value="{{item.time}}"
+              disabled="{{saving}}"
+              data-index="{{index}}"
+              bindchange="onNotificationTimeChange"
+            >
+              <view class="date-time-value">{{item.time}}</view>
+            </picker>
+          </view>
+          <button
+            class="small-text-button"
+            disabled="{{saving}}"
+            data-index="{{index}}"
+            bindtap="onRemoveNotificationTime"
+          >
+            移除这个通知时间
+          </button>
+        </view>
+        <button
+          class="secondary-button secondary-button--compact"
+          disabled="{{saving}}"
+          bindtap="onAddNotificationTime"
+        >
+          ＋ 添加通知时间
+        </button>
+      </view>
+
       <view class="field-group">
-        <view class="field-label">备注（选填）</view>
+        <view class="field-label">{{remarkLabel}}</view>
+        <view
+          wx:if="{{mode === 'checkIn' && reminderRemark}}"
+          class="reminder-note"
+        >
+          提醒说明：{{reminderRemark}}
+        </view>
         <textarea
           id="record-remark-input"
           class="remark-input"
@@ -156,13 +243,16 @@
           maxlength="500"
           auto-height
           disabled="{{saving}}"
-          placeholder="例如：晨起测量、饭后两小时"
+          placeholder="{{mode === 'reminder' ? '例如：饭后两小时测量' : '例如：晨起测量、饭后两小时'}}"
           bindinput="onRemarkInput"
         />
       </view>
     </view>
 
-    <view class="form-card">
+    <view
+      wx:if="{{!reminderId && mode !== 'checkIn'}}"
+      class="form-card"
+    >
       <view class="form-card__title">临时字段（选填）</view>
       <view class="form-hint">
         只属于这条记录，保存后不能再改变字段结构；最多 3 个。
@@ -222,7 +312,7 @@
       disabled="{{saving}}"
       bindtap="onSave"
     >
-      保存记录
+      {{submitLabel}}
     </button>
   </view>
 </view>

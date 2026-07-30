@@ -68,6 +68,48 @@
   margin-top: 26rpx;
 }
 
+.mode-selector {
+  display: flex;
+  gap: 12rpx;
+}
+
+.mode-selector__button {
+  position: relative;
+  flex: 1;
+  margin: 0;
+  padding: 18rpx 8rpx;
+  border: 0;
+  border-radius: 18rpx;
+  color: #60776f;
+  font-size: 23rpx;
+  background: #eef4f1;
+}
+
+.mode-selector__button::after {
+  border: 0;
+}
+
+.mode-selector__button--selected {
+  color: #ffffff;
+  font-weight: 700;
+  background: #2f765e;
+}
+
+.mode-selector__button--future {
+  padding-right: 34rpx;
+}
+
+.mode-selector__badge {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  padding: 2rpx 7rpx;
+  border-radius: 999rpx;
+  color: #7d6640;
+  font-size: 16rpx;
+  background: #f6edda;
+}
+
 .field-label {
   margin-bottom: 14rpx;
   color: #45655a;
@@ -182,6 +224,18 @@
   text-align: center;
 }
 
+.notification-time {
+  margin-top: 18rpx;
+  padding: 18rpx 20rpx 12rpx;
+  border-radius: 18rpx;
+  background: #f4f8f6;
+}
+
+.secondary-button--compact {
+  margin-top: 18rpx;
+  font-size: 25rpx;
+}
+
 .remark-input {
   width: 100%;
   min-height: 130rpx;
@@ -189,6 +243,16 @@
   color: #173b2f;
   font-size: 27rpx;
   line-height: 1.6;
+}
+
+.reminder-note {
+  margin-bottom: 16rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 16rpx;
+  color: #60776f;
+  font-size: 24rpx;
+  line-height: 1.6;
+  background: #eef5f1;
 }
 
 .feedback {

@@ -47,20 +47,26 @@ function createApiFor({
   ],
   templates = [],
   records = [],
+  reminders = [],
   now = new Date("2026-07-29T01:30:00.000Z"),
   createRecordId = () => "record-1",
+  createReminderId = () => "reminder-1",
+  createCheckInRecordId = () => "record-for-reminder-1",
 } = {}) {
   const healthItemStore = createInMemoryHealthItemStore({
     users: caller === subject ? [caller] : [caller, subject],
     memberships,
     templates,
     records,
+    reminders,
   });
   const api = createHealthItemApi({
     getCaller: async () => structuredClone(caller),
     healthItemStore,
     getSystemTemplate,
     createRecordId,
+    createReminderId,
+    createCheckInRecordId,
     now: () => now,
   });
 
@@ -69,6 +75,439 @@ function createApiFor({
     healthItemStore,
   };
 }
+
+function createPendingReminder({
+  id = "reminder-1",
+  familyId = "family-1",
+  subjectUserId = "user-1",
+  revision = 1,
+} = {}) {
+  return {
+    _id: id,
+    familyId,
+    subjectUserId,
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: {},
+    plannedAt: new Date("2026-07-29T03:00:00.000Z"),
+    notificationTimes: [],
+    notificationAttemptCount: 0,
+    status: "pending",
+    creationSource: "manual",
+    dedupKey: `item:${id}`,
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision,
+    createdAt: new Date("2026-07-29T01:00:00.000Z"),
+    updatedAt: new Date("2026-07-29T01:00:00.000Z"),
+  };
+}
+
+function createCheckInRecord({
+  id = "record-for-reminder-1",
+  reminderId = "reminder-1",
+  familyId = "family-1",
+  subjectUserId = "user-1",
+  revision = 1,
+} = {}) {
+  return {
+    _id: id,
+    familyId,
+    subjectUserId,
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: {
+      temperature: 36.6,
+    },
+    occurredAt: new Date("2026-07-29T02:30:00.000Z"),
+    recordSource: "reminder_check_in",
+    sourceReminderId: reminderId,
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision,
+    createdAt: new Date("2026-07-29T01:30:00.000Z"),
+    updatedAt: new Date("2026-07-29T01:30:00.000Z"),
+    originRecordId: id,
+  };
+}
+
+test("有效成员可以创建无需预填测量值的一次性提醒", async () => {
+  const caller = createUser();
+  const { api, healthItemStore } = createApiFor({
+    caller,
+  });
+
+  const result = await api.handle({
+    action: "createReminder",
+    requestId: "req-create-temperature-reminder",
+    data: {
+      familyId: "family-1",
+      subjectUserId: caller._id,
+      sourceTemplateId: "sys_temperature",
+      plannedAt: "2026-07-29T03:00:00.000Z",
+      notificationTimes: ["2026-07-29T02:50:00.000Z"],
+      values: {},
+      remark: "饭后测量",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.reminder.id, "reminder-1");
+  assert.deepEqual(healthItemStore.inspectReminders(), [
+    {
+      _id: "reminder-1",
+      familyId: "family-1",
+      subjectUserId: caller._id,
+      sourceTemplateType: "system",
+      sourceTemplateId: "sys_temperature",
+      templateNameSnapshot: "体温",
+      fieldSchemaSnapshot: [
+        {
+          key: "temperature",
+          label: "体温",
+          type: "number",
+          unit: "℃",
+          required: true,
+          sortOrder: 10,
+        },
+      ],
+      values: {},
+      remark: "饭后测量",
+      plannedAt: new Date("2026-07-29T03:00:00.000Z"),
+      notificationTimes: [
+        new Date("2026-07-29T02:50:00.000Z"),
+      ],
+      nextNotificationAt: new Date("2026-07-29T02:50:00.000Z"),
+      notificationAttemptCount: 0,
+      status: "pending",
+      creationSource: "manual",
+      dedupKey: "item:reminder-1",
+      createdByUserId: caller._id,
+      updatedByUserId: caller._id,
+      revision: 1,
+      createdAt: new Date("2026-07-29T01:30:00.000Z"),
+      updatedAt: new Date("2026-07-29T01:30:00.000Z"),
+    },
+  ]);
+});
+
+test("有效家庭成员可以修改未打卡提醒的时间和备注", async () => {
+  const caller = createUser();
+  const reminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    reminders: [reminder],
+    now: new Date("2026-07-29T01:40:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "updateHealthItem",
+    requestId: "req-update-reminder",
+    data: {
+      reminderId: reminder._id,
+      expectedRevision: 1,
+      plannedAt: "2026-07-29T04:00:00.000Z",
+      notificationTimes: [],
+      values: {},
+      remark: "改为午后测量",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.reminder.revision, 2);
+  const [updated] = healthItemStore.inspectReminders();
+  assert.deepEqual(updated.plannedAt, new Date("2026-07-29T04:00:00.000Z"));
+  assert.equal(updated.remark, "改为午后测量");
+  assert.equal(updated.status, "pending");
+});
+
+test("有效家庭成员可以读取提醒详情用于编辑或打卡", async () => {
+  const caller = createUser();
+  const reminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const { api } = createApiFor({
+    caller,
+    reminders: [reminder],
+  });
+
+  const result = await api.handle({
+    action: "getHealthItem",
+    requestId: "req-read-reminder",
+    data: {
+      reminderId: reminder._id,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.reminder.id, reminder._id);
+  assert.equal(result.data.reminder.status, "pending");
+});
+
+test("提醒打卡会在同一业务动作中完成提醒并创建关联记录", async () => {
+  const caller = createUser();
+  const reminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    reminders: [reminder],
+  });
+
+  const result = await api.handle({
+    action: "checkInReminder",
+    requestId: "req-check-in-reminder",
+    data: {
+      reminderId: reminder._id,
+      expectedRevision: 1,
+      occurredAt: "2026-07-29T02:30:00.000Z",
+      values: {
+        temperature: 36.6,
+      },
+      remark: "提前测量",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.replayed, false);
+  assert.equal(
+    result.data.reminder.linkedRecordId,
+    "record-for-reminder-1",
+  );
+  assert.equal(result.data.record.id, "record-for-reminder-1");
+  assert.deepEqual(healthItemStore.inspectReminders(), [
+    {
+      ...reminder,
+      status: "completed",
+      completedAt: new Date("2026-07-29T01:30:00.000Z"),
+      linkedRecordId: "record-for-reminder-1",
+      updatedByUserId: caller._id,
+      revision: 2,
+      updatedAt: new Date("2026-07-29T01:30:00.000Z"),
+    },
+  ]);
+  assert.deepEqual(healthItemStore.inspectRecords(), [
+    {
+      _id: "record-for-reminder-1",
+      familyId: reminder.familyId,
+      subjectUserId: caller._id,
+      sourceTemplateType: "system",
+      sourceTemplateId: "sys_temperature",
+      templateNameSnapshot: "体温",
+      fieldSchemaSnapshot: reminder.fieldSchemaSnapshot,
+      values: {
+        temperature: 36.6,
+      },
+      remark: "提前测量",
+      occurredAt: new Date("2026-07-29T02:30:00.000Z"),
+      recordSource: "reminder_check_in",
+      sourceReminderId: reminder._id,
+      createdByUserId: caller._id,
+      updatedByUserId: caller._id,
+      revision: 1,
+      createdAt: new Date("2026-07-29T01:30:00.000Z"),
+      updatedAt: new Date("2026-07-29T01:30:00.000Z"),
+      originRecordId: "record-for-reminder-1",
+    },
+  ]);
+});
+
+test("同一提醒重复打卡只返回原有关联记录", async () => {
+  const caller = createUser();
+  const reminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    reminders: [reminder],
+  });
+  const request = {
+    action: "checkInReminder",
+    requestId: "req-repeat-check-in",
+    data: {
+      reminderId: reminder._id,
+      expectedRevision: 1,
+      occurredAt: "2026-07-29T02:30:00.000Z",
+      values: {
+        temperature: 36.6,
+      },
+    },
+  };
+
+  const first = await api.handle(request);
+  const second = await api.handle(request);
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(second.data.replayed, true);
+  assert.equal(
+    second.data.record.id,
+    first.data.record.id,
+  );
+  assert.equal(healthItemStore.inspectRecords().length, 1);
+});
+
+test("删除打卡记录会同时把原提醒恢复为未打卡", async () => {
+  const caller = createUser();
+  const record = createCheckInRecord({
+    subjectUserId: caller._id,
+  });
+  const pendingReminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const reminder = {
+    ...pendingReminder,
+    status: "completed",
+    completedAt: new Date("2026-07-29T01:30:00.000Z"),
+    linkedRecordId: record._id,
+    revision: 2,
+  };
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    records: [record],
+    reminders: [reminder],
+  });
+
+  const result = await api.handle({
+    action: "softDeleteItem",
+    requestId: "req-delete-check-in-record",
+    data: {
+      recordId: record._id,
+      expectedRevision: 1,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const [updatedReminder] = healthItemStore.inspectReminders();
+  assert.equal(updatedReminder.status, "pending");
+  assert.equal(updatedReminder.revision, 3);
+  assert.equal(
+    Object.hasOwn(updatedReminder, "linkedRecordId"),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(updatedReminder, "completedAt"),
+    false,
+  );
+});
+
+test("恢复打卡记录会在原提醒空闲时重新完成该提醒", async () => {
+  const caller = createUser();
+  const record = {
+    ...createCheckInRecord({
+      subjectUserId: caller._id,
+      revision: 2,
+    }),
+    deletedAt: new Date("2026-07-29T01:40:00.000Z"),
+    deletedByUserId: caller._id,
+  };
+  const reminder = {
+    ...createPendingReminder({
+      subjectUserId: caller._id,
+      revision: 3,
+    }),
+    updatedAt: new Date("2026-07-29T01:40:00.000Z"),
+  };
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    records: [record],
+    reminders: [reminder],
+    now: new Date("2026-07-29T01:50:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "restoreItem",
+    requestId: "req-restore-check-in-record",
+    data: {
+      recordId: record._id,
+      expectedRevision: 2,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const [updatedReminder] = healthItemStore.inspectReminders();
+  assert.equal(updatedReminder.status, "completed");
+  assert.equal(updatedReminder.linkedRecordId, record._id);
+  assert.equal(updatedReminder.revision, 4);
+  assert.deepEqual(
+    updatedReminder.completedAt,
+    new Date("2026-07-29T01:50:00.000Z"),
+  );
+});
+
+test("原提醒已有新记录时阻止恢复旧打卡记录", async () => {
+  const caller = createUser();
+  const oldRecord = {
+    ...createCheckInRecord({
+      id: "old-record",
+      subjectUserId: caller._id,
+      revision: 2,
+    }),
+    deletedAt: new Date("2026-07-29T01:40:00.000Z"),
+    deletedByUserId: caller._id,
+  };
+  const newRecord = createCheckInRecord({
+    id: "new-record",
+    subjectUserId: caller._id,
+  });
+  const reminder = {
+    ...createPendingReminder({
+      subjectUserId: caller._id,
+      revision: 4,
+    }),
+    status: "completed",
+    completedAt: new Date("2026-07-29T01:45:00.000Z"),
+    linkedRecordId: newRecord._id,
+  };
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    records: [oldRecord, newRecord],
+    reminders: [reminder],
+  });
+
+  const result = await api.handle({
+    action: "restoreItem",
+    requestId: "req-restore-conflicting-record",
+    data: {
+      recordId: oldRecord._id,
+      expectedRevision: 2,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "REMINDER_LINK_CONFLICT");
+  assert.equal(
+    healthItemStore
+      .inspectRecords()
+      .find((record) => record._id === oldRecord._id).deletedAt
+      .toISOString(),
+    "2026-07-29T01:40:00.000Z",
+  );
+});
 
 test("有效成员可以为家庭中的有效成员创建体温记录", async () => {
   const caller = createUser();

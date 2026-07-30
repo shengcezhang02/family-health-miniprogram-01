@@ -1,14 +1,41 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/records/records",
+    "pages/daily-health/daily-health",
+    "pages/advanced-analysis/advanced-analysis",
     "pages/invite/invite",
     "pages/profile/profile",
-    "pages/records/records",
     "pages/record-editor/record-editor",
     "pages/record-detail/record-detail",
     "pages/deleted-records/deleted-records",
     "pages/templates/templates"
   ],
+  "tabBar": {
+    "custom": true,
+    "color": "#70857D",
+    "selectedColor": "#2F765E",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/records/records",
+        "text": "健康记录"
+      },
+      {
+        "pagePath": "pages/daily-health/daily-health",
+        "text": "每日健康"
+      },
+      {
+        "pagePath": "pages/advanced-analysis/advanced-analysis",
+        "text": "进阶分析"
+      },
+      {
+        "pagePath": "pages/index/index",
+        "text": "我和家庭"
+      }
+    ]
+  },
   "window": {
     "backgroundColor": "#F4F7F5",
     "backgroundTextStyle": "light",

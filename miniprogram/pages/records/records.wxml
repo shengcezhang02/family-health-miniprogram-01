@@ -1,30 +1,34 @@
 <view class="records-shell">
   <view class="records-header">
-    <view class="records-header__eyebrow">{{familyName}}</view>
+    <view class="records-header__eyebrow">RECORDS · {{familyName}}</view>
     <view class="records-header__row">
       <view>
         <view class="records-header__title">健康记录</view>
         <view class="records-header__description">
-          按实际发生时间，从新到旧排列。
+          通过多张卡片查看自己和家人的长期健康数据。
         </view>
       </view>
       <button
         wx:if="{{status === 'ready'}}"
-        id="timeline-quick-add-button"
+        id="records-switch-family-button"
         class="add-button"
-        bindtap="onQuickAdd"
+        bindtap="onSwitchFamily"
       >
-        ＋ 记录
+        切换家庭
       </button>
     </view>
   </view>
 
   <view wx:if="{{status === 'ready'}}" class="records-tools">
-    <button class="tool-button" bindtap="onOpenTemplates">
-      管理自定义模板
+    <button
+      id="manage-dashboard-cards-button"
+      class="tool-button"
+      bindtap="onManageCards"
+    >
+      管理卡片
     </button>
     <button class="tool-button" bindtap="onOpenDeletedRecords">
-      已删除记录
+      记录回收站
     </button>
   </view>
 
@@ -52,60 +56,63 @@
     </button>
   </view>
 
-  <view wx:elif="{{items.length === 0}}" class="empty-state">
-    <view class="empty-state__icon">记</view>
-    <view class="empty-state__title">还没有健康记录</view>
-    <view class="empty-state__description">
-      从一条体温、血压、血糖或用药记录开始。
+  <view wx:elif="{{status === 'ready'}}" class="dashboard-card">
+    <view class="dashboard-card__header">
+      <view>
+        <view class="dashboard-card__type">记录列表</view>
+        <view class="dashboard-card__title">近期记录</view>
+      </view>
+      <view class="dashboard-card__filter">全部成员 · 全部时间</view>
     </view>
-    <button
-      id="empty-quick-add-button"
-      class="primary-button"
-      bindtap="onQuickAdd"
-    >
-      添加第一条记录
-    </button>
-  </view>
 
-  <view wx:else class="timeline">
-    <view
-      wx:for="{{items}}"
-      wx:key="id"
-      class="timeline-item"
-    >
-      <view class="timeline-item__dot"></view>
+    <view wx:if="{{items.length === 0}}" class="empty-state empty-state--inside-card">
+      <view class="empty-state__icon">记</view>
+      <view class="empty-state__title">这张卡片还没有记录</view>
+      <view class="empty-state__description">
+        点击底部中央“+”，从一条体温、血压、血糖或用药记录开始。
+      </view>
+    </view>
+
+    <view wx:else class="timeline">
       <view
-        id="record-card-{{item.id}}"
-        class="record-card"
-        data-record-id="{{item.id}}"
-        bindtap="onOpenRecord"
+        wx:for="{{items}}"
+        wx:key="id"
+        class="timeline-item"
       >
-        <view class="record-card__top">
-          <view>
-            <view class="record-card__template">
-              {{item.templateNameSnapshot}}
+        <view class="timeline-item__dot"></view>
+        <view
+          id="record-card-{{item.id}}"
+          class="record-card"
+          data-record-id="{{item.id}}"
+          bindtap="onOpenRecord"
+        >
+          <view class="record-card__top">
+            <view>
+              <view class="record-card__template">
+                {{item.templateNameSnapshot}}
+              </view>
+              <view class="record-card__subject">
+                {{item.displaySubjectName}}
+              </view>
             </view>
-            <view class="record-card__subject">
-              {{item.displaySubjectName}}
+            <view class="record-card__time">{{item.displayOccurredAt}}</view>
+          </view>
+          <view class="record-card__values">
+            <view
+              wx:for="{{item.displayFields}}"
+              wx:for-item="field"
+              wx:key="key"
+              class="record-value"
+            >
+              <view class="record-value__label">{{field.label}}</view>
+              <view class="record-value__content">{{field.value}}</view>
             </view>
           </view>
-          <view class="record-card__time">{{item.displayOccurredAt}}</view>
-        </view>
-        <view class="record-card__values">
-          <view
-            wx:for="{{item.displayFields}}"
-            wx:for-item="field"
-            wx:key="key"
-            class="record-value"
-          >
-            <view class="record-value__label">{{field.label}}</view>
-            <view class="record-value__content">{{field.value}}</view>
+          <view wx:if="{{item.remark}}" class="record-card__remark">
+            备注：{{item.remark}}
           </view>
+          <view class="record-card__open">查看与编辑 ›</view>
         </view>
-        <view wx:if="{{item.remark}}" class="record-card__remark">
-          备注：{{item.remark}}
-        </view>
-        <view class="record-card__open">查看与编辑 ›</view>
       </view>
     </view>
   </view>

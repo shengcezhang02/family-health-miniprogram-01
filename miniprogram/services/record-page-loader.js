@@ -25,12 +25,14 @@ function createRecordPageLoader({
   listFamilyMembers,
   listTemplates,
   getRecordTimeline,
+  resolveCurrentFamily,
 }) {
   async function loadFamily(familyId) {
     const bootstrapResult = await bootstrapFamily();
-    const family = (bootstrapResult.families || []).find(
-      (item) => item.id === familyId,
-    );
+    const families = bootstrapResult.families || [];
+    const family = familyId
+      ? families.find((item) => item.id === familyId)
+      : resolveCurrentFamily?.(families);
 
     if (!family) {
       const error = new Error(FAMILY_ACCESS_DENIED_MESSAGE);
@@ -45,8 +47,8 @@ function createRecordPageLoader({
     async loadEditor(familyId) {
       const family = await loadFamily(familyId);
       const [membersResult, templatesResult] = await Promise.all([
-        listFamilyMembers({ familyId }),
-        listTemplates({ familyId }),
+        listFamilyMembers({ familyId: family.id }),
+        listTemplates({ familyId: family.id }),
       ]);
 
       return {
@@ -61,8 +63,8 @@ function createRecordPageLoader({
     async loadTimeline(familyId) {
       const family = await loadFamily(familyId);
       const [timelineResult, membersResult] = await Promise.all([
-        getRecordTimeline({ familyId }),
-        listFamilyMembers({ familyId }),
+        getRecordTimeline({ familyId: family.id }),
+        listFamilyMembers({ familyId: family.id }),
       ]);
 
       return {

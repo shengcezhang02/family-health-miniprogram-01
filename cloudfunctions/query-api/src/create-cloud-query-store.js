@@ -2,6 +2,7 @@ function createCloudQueryStore(db) {
   const users = db.collection("users");
   const memberships = db.collection("family_memberships");
   const records = db.collection("health_records");
+  const reminders = db.collection("one_time_reminders");
 
   async function findOne(collection, query) {
     const result = await collection.where(query).limit(1).get();
@@ -53,6 +54,54 @@ function createCloudQueryStore(db) {
             new Date(left.deletedAt).getTime(),
         )
         .slice(0, limit);
+    },
+
+    async listDailyRecords(familyId, startAt, endAt) {
+      const result = await records
+        .where({
+          familyId,
+        })
+        .limit(100)
+        .get();
+
+      return result.data
+        .filter((record) => {
+          const occurredAt = new Date(record.occurredAt);
+          return (
+            record.deletedAt === undefined &&
+            occurredAt >= startAt &&
+            occurredAt < endAt
+          );
+        })
+        .sort(
+          (left, right) =>
+            new Date(left.occurredAt).getTime() -
+            new Date(right.occurredAt).getTime(),
+        );
+    },
+
+    async listDailyReminders(familyId, startAt, endAt) {
+      const result = await reminders
+        .where({
+          familyId,
+        })
+        .limit(100)
+        .get();
+
+      return result.data
+        .filter((reminder) => {
+          const plannedAt = new Date(reminder.plannedAt);
+          return (
+            reminder.deletedAt === undefined &&
+            plannedAt >= startAt &&
+            plannedAt < endAt
+          );
+        })
+        .sort(
+          (left, right) =>
+            new Date(left.plannedAt).getTime() -
+            new Date(right.plannedAt).getTime(),
+        );
     },
 
     async getUsersByIds(userIds) {

@@ -1,6 +1,9 @@
 const {
   createCurrentFamilyPreference,
 } = require("../../services/current-family-preference");
+const {
+  syncMainNavigationSelection,
+} = require("../../services/main-navigation");
 
 const currentFamilyPreference = createCurrentFamilyPreference({
   get: (key) => wx.getStorageSync(key),
@@ -23,6 +26,10 @@ Page({
 
   onLoad() {
     this.bootstrap();
+  },
+
+  onShow() {
+    syncMainNavigationSelection(this);
   },
 
   onRetry() {
@@ -141,10 +148,8 @@ Page({
       return;
     }
 
-    wx.navigateTo({
-      url: `/pages/records/records?familyId=${family.id}&familyName=${encodeURIComponent(
-        family.name,
-      )}`,
+    wx.switchTab({
+      url: "/pages/records/records",
     });
   },
 

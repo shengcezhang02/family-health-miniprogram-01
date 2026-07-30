@@ -122,12 +122,22 @@
   </view>
 
   <view wx:else class="family-home">
-    <view class="family-home__eyebrow">当前家庭</view>
-    <view id="current-family-name" class="family-home__title">
-      {{currentFamily.name}}
+    <view class="family-home__eyebrow">YOU · FAMILY</view>
+    <view class="family-home__title">我和家庭</view>
+    <view class="family-home__description">
+      管理自己的健康资料，也管理正在使用的家庭空间。
     </view>
-    <view class="role-badge">
-      {{currentFamily.role === "admin" ? "管理员" : "家庭成员"}}
+
+    <view class="current-space">
+      <view>
+        <view class="current-space__label">当前家庭</view>
+        <view id="current-family-name" class="current-space__name">
+          {{currentFamily.name}}
+        </view>
+      </view>
+      <view class="role-badge">
+        {{currentFamily.role === "admin" ? "管理员" : "家庭成员"}}
+      </view>
     </view>
 
     <view class="empty-card empty-card--records">

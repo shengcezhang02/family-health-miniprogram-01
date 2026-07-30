@@ -2,6 +2,10 @@ const app = getApp();
 const {
   createRecordPageLoader,
 } = require("../../services/record-page-loader");
+const {
+  buildNotificationTimeValues,
+  toNotificationTimeRows,
+} = require("../../services/reminder-notification-times");
 
 const recordPageLoader = createRecordPageLoader({
   bootstrapFamily: () => app.callFamilyApi("bootstrap"),
@@ -26,6 +30,62 @@ function getLocalDateTimeParts(date = new Date()) {
   };
 }
 
+function getEditorCopy(mode, reminderId) {
+  if (mode === "checkIn") {
+    return {
+      pageTitle: "提醒打卡",
+      pageDescription: "填写实际结果，保存后提醒会标记为已打卡。",
+      timeLabel: "实际发生时间",
+      submitLabel: "完成打卡",
+      remarkLabel: "本次记录备注（选填）",
+    };
+  }
+
+  if (mode === "reminder") {
+    return {
+      pageTitle: reminderId ? "修改提醒" : "新建提醒",
+      pageDescription: "设置计划时间；健康数据可以在打卡时再填写。",
+      timeLabel: "计划时间",
+      submitLabel: reminderId ? "保存修改" : "保存提醒",
+      remarkLabel: "提醒备注（选填）",
+    };
+  }
+
+  return {
+    pageTitle: "快速记录",
+    pageDescription: "选择记录对象和模板，只填写当前需要的内容。",
+    timeLabel: "发生时间",
+    submitLabel: "保存记录",
+    remarkLabel: "备注（选填）",
+  };
+}
+
+function buildChoiceState(template, values) {
+  const fieldChoiceIndexes = {};
+  const selectedChoiceLabels = {};
+
+  for (const field of template.fields || []) {
+    if (field.type !== "single_choice") {
+      continue;
+    }
+
+    const optionIndex = (field.options || []).findIndex(
+      (option) => option.key === values[field.key],
+    );
+
+    if (optionIndex >= 0) {
+      fieldChoiceIndexes[field.key] = optionIndex;
+      selectedChoiceLabels[field.key] =
+        field.options[optionIndex].label;
+    }
+  }
+
+  return {
+    fieldChoiceIndexes,
+    selectedChoiceLabels,
+  };
+}
+
 Page({
   data: {
     status: "loading",
@@ -44,19 +104,54 @@ Page({
     remark: "",
     occurredDate: "",
     occurredTime: "",
+    notificationTimeRows: [],
     saving: false,
     errorMessage: "",
     showGoHome: false,
+    mode: "record",
+    reminderId: "",
+    reminderRevision: 0,
+    reminderRemark: "",
+    pageTitle: "快速记录",
+    pageDescription: "",
+    timeLabel: "发生时间",
+    submitLabel: "保存记录",
+    remarkLabel: "备注（选填）",
+    showModeSelector: false,
   },
 
   onLoad(options) {
     this._saveRequestId = "";
+    const mode =
+      options.mode === "reminder" || options.mode === "checkIn"
+        ? options.mode
+        : "record";
+    const reminderId = options.reminderId || "";
+    const showModeSelector =
+      options.from === "quick-add" && !reminderId;
+    const editorCopy = getEditorCopy(mode, reminderId);
     this.setData({
       familyId: options.familyId || "",
       familyName: options.familyName
         ? decodeURIComponent(options.familyName)
         : "当前家庭",
+      mode,
+      reminderId,
+      ...editorCopy,
+      ...(showModeSelector
+        ? {
+            pageTitle: "健康事项编辑",
+            pageDescription:
+              "选择记录或一次性提醒；周期提醒将在下一里程碑接入同一页面。",
+          }
+        : {}),
+      showModeSelector,
       ...getLocalDateTimeParts(),
+    });
+    wx.setNavigationBarTitle({
+      title: showModeSelector
+        ? "健康事项编辑"
+        : editorCopy.pageTitle,
     });
     this.loadEditor();
   },
@@ -75,6 +170,40 @@ Page({
     this._saveRequestId = "";
     this.setData({
       errorMessage: "",
+    });
+  },
+
+  onModeSelect(event) {
+    const mode = event.currentTarget.dataset.mode;
+
+    if (
+      this.data.saving ||
+      this.data.reminderId ||
+      mode === this.data.mode
+    ) {
+      return;
+    }
+
+    if (mode === "recurring") {
+      wx.showToast({
+        title: "周期提醒将在 M7 接入",
+        icon: "none",
+      });
+      return;
+    }
+
+    if (mode !== "record" && mode !== "reminder") {
+      return;
+    }
+
+    const editorCopy = getEditorCopy(mode, "");
+    this.markChanged();
+    this.setData({
+      mode,
+      ...editorCopy,
+      pageTitle: "健康事项编辑",
+      pageDescription:
+        "选择记录或一次性提醒；周期提醒将在下一里程碑接入同一页面。",
     });
   },
 
@@ -176,6 +305,46 @@ Page({
     });
   },
 
+  onAddNotificationTime() {
+    this.markChanged();
+    this.setData({
+      notificationTimeRows: this.data.notificationTimeRows.concat([
+        {
+          date: this.data.occurredDate,
+          time: this.data.occurredTime,
+        },
+      ]),
+    });
+  },
+
+  onNotificationDateChange(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    this.markChanged();
+    this.setData({
+      [`notificationTimeRows[${index}].date`]:
+        event.detail.value,
+    });
+  },
+
+  onNotificationTimeChange(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    this.markChanged();
+    this.setData({
+      [`notificationTimeRows[${index}].time`]:
+        event.detail.value,
+    });
+  },
+
+  onRemoveNotificationTime(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    this.markChanged();
+    this.setData({
+      notificationTimeRows: this.data.notificationTimeRows.filter(
+        (row, rowIndex) => rowIndex !== index,
+      ),
+    });
+  },
+
   onRemarkInput(event) {
     this.markChanged();
     this.setData({
@@ -203,13 +372,25 @@ Page({
       const result = await recordPageLoader.loadEditor(
         this.data.familyId,
       );
+      const reminderResult = this.data.reminderId
+        ? await app.callHealthItemApi("getHealthItem", {
+            reminderId: this.data.reminderId,
+          })
+        : null;
+      const reminder = reminderResult?.reminder;
       const selectedMemberIndex = Math.max(
-        result.members.findIndex((member) => member.isSelf),
+        result.members.findIndex((member) =>
+          reminder
+            ? member.id === reminder.subjectUserId
+            : member.isSelf,
+        ),
         0,
       );
       const selectedTemplateIndex = Math.max(
         result.templates.findIndex(
-          (template) => template.id === "sys_temperature",
+          (template) =>
+            template.id ===
+            (reminder?.sourceTemplateId || "sys_temperature"),
         ),
         0,
       );
@@ -217,6 +398,24 @@ Page({
       if (!result.members.length || !result.templates.length) {
         throw new Error("当前家庭暂时没有可用的成员或记录模板");
       }
+
+      const selectedTemplate = reminder
+        ? {
+            id: reminder.sourceTemplateId,
+            sourceType: reminder.sourceTemplateType,
+            name: reminder.templateNameSnapshot,
+            fields: reminder.fieldSchemaSnapshot,
+          }
+        : result.templates[selectedTemplateIndex];
+      const fieldValues = reminder?.values || {};
+      const choiceState = buildChoiceState(
+        selectedTemplate,
+        fieldValues,
+      );
+      const reminderDateTime =
+        reminder && this.data.mode === "reminder"
+          ? getLocalDateTimeParts(new Date(reminder.plannedAt))
+          : {};
 
       this.setData({
         status: "ready",
@@ -226,11 +425,23 @@ Page({
         selectedMemberIndex,
         selectedTemplateIndex,
         selectedMember: result.members[selectedMemberIndex],
-        selectedTemplate: result.templates[selectedTemplateIndex],
-        fieldValues: {},
-        fieldChoiceIndexes: {},
-        selectedChoiceLabels: {},
+        selectedTemplate,
+        fieldValues,
+        ...choiceState,
         temporaryFields: [],
+        reminderRevision: reminder?.revision || 0,
+        reminderRemark: reminder?.remark || "",
+        notificationTimeRows:
+          reminder && this.data.mode === "reminder"
+            ? toNotificationTimeRows(
+                reminder.notificationTimes || [],
+              )
+            : [],
+        remark:
+          reminder && this.data.mode === "reminder"
+            ? reminder.remark || ""
+            : "",
+        ...reminderDateTime,
       });
     } catch (error) {
       this.setData({
@@ -241,7 +452,7 @@ Page({
     }
   },
 
-  buildValues() {
+  buildValues(requireAllFields = true) {
     const values = {};
 
     for (const field of this.data.selectedTemplate.fields) {
@@ -254,7 +465,7 @@ Page({
         normalized === null ||
         normalized === ""
       ) {
-        if (field.required) {
+        if (field.required && requireAllFields) {
           throw new Error(`请填写${field.label}`);
         }
         continue;
@@ -299,16 +510,26 @@ Page({
     let values;
     let temporaryFields;
     let occurredAt;
+    let notificationTimes = [];
 
     try {
-      values = this.buildValues();
-      temporaryFields = this.buildTemporaryFields();
+      values = this.buildValues(this.data.mode !== "reminder");
+      temporaryFields =
+        this.data.reminderId || this.data.mode === "checkIn"
+          ? []
+          : this.buildTemporaryFields();
       occurredAt = new Date(
         `${this.data.occurredDate}T${this.data.occurredTime}:00`,
       );
 
       if (Number.isNaN(occurredAt.getTime())) {
         throw new Error("请选择有效的记录时间");
+      }
+
+      if (this.data.mode === "reminder") {
+        notificationTimes = buildNotificationTimeValues(
+          this.data.notificationTimeRows,
+        );
       }
     } catch (error) {
       this.setData({
@@ -319,7 +540,7 @@ Page({
 
     this._saveRequestId =
       this._saveRequestId ||
-      `createRecord-${Date.now()}-${Math.random()
+      `${this.data.mode}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 10)}`;
     this.setData({
@@ -328,28 +549,84 @@ Page({
     });
 
     try {
-      await app.callHealthItemApi(
-        "createRecord",
-        {
+      if (this.data.mode === "checkIn") {
+        await app.callHealthItemApi(
+          "checkInReminder",
+          {
+            reminderId: this.data.reminderId,
+            expectedRevision: this.data.reminderRevision,
+            occurredAt: occurredAt.toISOString(),
+            values,
+            remark: this.data.remark,
+          },
+          this._saveRequestId,
+        );
+      } else if (this.data.mode === "reminder") {
+        const reminderData = {
           familyId: this.data.familyId,
           subjectUserId: this.data.selectedMember.id,
           sourceTemplateType: this.data.selectedTemplate.sourceType,
           sourceTemplateId: this.data.selectedTemplate.id,
-          occurredAt: occurredAt.toISOString(),
+          plannedAt: occurredAt.toISOString(),
+          notificationTimes,
           values,
-          temporaryFields,
           remark: this.data.remark,
-        },
-        this._saveRequestId,
-      );
+        };
+
+        if (this.data.reminderId) {
+          await app.callHealthItemApi(
+            "updateHealthItem",
+            {
+              reminderId: this.data.reminderId,
+              expectedRevision: this.data.reminderRevision,
+              plannedAt: reminderData.plannedAt,
+              notificationTimes,
+              values,
+              remark: this.data.remark,
+            },
+            this._saveRequestId,
+          );
+        } else {
+          await app.callHealthItemApi(
+            "createReminder",
+            {
+              ...reminderData,
+              temporaryFields,
+            },
+            this._saveRequestId,
+          );
+        }
+      } else {
+        await app.callHealthItemApi(
+          "createRecord",
+          {
+            familyId: this.data.familyId,
+            subjectUserId: this.data.selectedMember.id,
+            sourceTemplateType:
+              this.data.selectedTemplate.sourceType,
+            sourceTemplateId: this.data.selectedTemplate.id,
+            occurredAt: occurredAt.toISOString(),
+            values,
+            temporaryFields,
+            remark: this.data.remark,
+          },
+          this._saveRequestId,
+        );
+      }
       wx.showToast({
-        title: "记录已保存",
+        title:
+          this.data.mode === "checkIn"
+            ? "打卡成功"
+            : this.data.mode === "reminder"
+              ? "提醒已保存"
+              : "记录已保存",
         icon: "success",
       });
-      wx.redirectTo({
-        url: `/pages/records/records?familyId=${
-          this.data.familyId
-        }&familyName=${encodeURIComponent(this.data.familyName)}`,
+      wx.switchTab({
+        url:
+          this.data.mode === "record"
+            ? "/pages/records/records"
+            : "/pages/daily-health/daily-health",
       });
     } catch (error) {
       this.setData({

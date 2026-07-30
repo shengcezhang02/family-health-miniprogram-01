@@ -41,12 +41,146 @@ function toTimelineItem(record, usersById) {
   return item;
 }
 
+function toChinaDateString(value) {
+  return new Date(value.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function parseChinaDateRange(value) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
+    throw new ApiError("INVALID_ARGUMENT", "请选择有效日期");
+  }
+
+  const startAt = new Date(`${value}T00:00:00.000+08:00`);
+
+  if (
+    Number.isNaN(startAt.getTime()) ||
+    toChinaDateString(startAt) !== value
+  ) {
+    throw new ApiError("INVALID_ARGUMENT", "请选择有效日期");
+  }
+
+  return {
+    startAt,
+    endAt: new Date(startAt.getTime() + 24 * 60 * 60 * 1000),
+  };
+}
+
+function getReminderDisplayStatus(reminder, currentTime) {
+  if (reminder.status === "completed") {
+    return "已打卡";
+  }
+
+  if (reminder.plannedAt.getTime() > currentTime.getTime()) {
+    return "待开始";
+  }
+
+  return toChinaDateString(reminder.plannedAt) ===
+    toChinaDateString(currentTime)
+    ? "待打卡"
+    : "未打卡";
+}
+
+function toDailyReminder(reminder, usersById, currentTime) {
+  const subject = usersById.get(reminder.subjectUserId);
+  const item = {
+    id: reminder._id,
+    subject: {
+      id: reminder.subjectUserId,
+      displayName: subject?.displayName ?? "家庭成员",
+      avatarUrl: subject?.avatarUrl ?? null,
+    },
+    sourceTemplateType: reminder.sourceTemplateType,
+    sourceTemplateId: reminder.sourceTemplateId,
+    templateNameSnapshot: reminder.templateNameSnapshot,
+    fieldSchemaSnapshot: reminder.fieldSchemaSnapshot.map((field) => ({
+      ...field,
+    })),
+    values: { ...reminder.values },
+    plannedAt: toIsoString(reminder.plannedAt),
+    status: reminder.status,
+    displayStatus: getReminderDisplayStatus(reminder, currentTime),
+    revision: reminder.revision,
+  };
+
+  if (reminder.remark) {
+    item.remark = reminder.remark;
+  }
+
+  if (reminder.completedAt) {
+    item.completedAt = toIsoString(reminder.completedAt);
+    item.linkedRecordId = reminder.linkedRecordId;
+  }
+
+  return item;
+}
+
 function createQueryApi({
   getCaller,
   queryStore,
+  now = () => new Date(),
   reportError = () => {},
 } = {}) {
   const actions = {
+    async getDailyHealth(data) {
+      if (typeof data.familyId !== "string" || !data.familyId) {
+        throw new ApiError("INVALID_ARGUMENT", "请选择家庭");
+      }
+
+      const dateRange = parseChinaDateRange(data.date);
+      const caller = await getCaller();
+      const membership = await queryStore.getActiveMembership(
+        data.familyId,
+        caller._id,
+      );
+
+      if (!membership) {
+        throw new ApiError(
+          "QUERY_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以查看每日健康",
+        );
+      }
+
+      const [records, reminders] = await Promise.all([
+        queryStore.listDailyRecords(
+          data.familyId,
+          dateRange.startAt,
+          dateRange.endAt,
+        ),
+        queryStore.listDailyReminders(
+          data.familyId,
+          dateRange.startAt,
+          dateRange.endAt,
+        ),
+      ]);
+      const userIds = [
+        ...new Set(
+          records
+            .map((record) => record.subjectUserId)
+            .concat(
+              reminders.map((reminder) => reminder.subjectUserId),
+            ),
+        ),
+      ];
+      const users = await queryStore.getUsersByIds(userIds);
+      const usersById = new Map(users.map((user) => [user._id, user]));
+      const currentTime = now();
+
+      return {
+        date: data.date,
+        records: records.map((record) =>
+          toTimelineItem(record, usersById),
+        ),
+        reminders: reminders.map((reminder) =>
+          toDailyReminder(reminder, usersById, currentTime),
+        ),
+      };
+    },
+
     async getRecordTimeline(data) {
       if (typeof data.familyId !== "string" || !data.familyId) {
         throw new ApiError("INVALID_ARGUMENT", "请选择家庭");
