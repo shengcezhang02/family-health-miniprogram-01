@@ -1,0 +1,176 @@
+.page-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 40rpx 34rpx 80rpx;
+  background: #f4f1eb;
+}
+
+.page-header__eyebrow {
+  color: #c65b4f;
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.page-header__title {
+  margin-top: 12rpx;
+  color: #202825;
+  font-size: 46rpx;
+  font-weight: 750;
+}
+
+.page-header__description {
+  margin-top: 10rpx;
+  color: #66716d;
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.add-card-button {
+  margin: 28rpx 0 0;
+  border: 0;
+  border-radius: 10rpx;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 700;
+  background: #2e6f68;
+}
+
+.add-card-button::after,
+.action-button::after {
+  border: 0;
+}
+
+.type-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.type-option {
+  padding: 20rpx;
+  border: 1rpx solid #d9d3ca;
+  border-radius: 11rpx;
+  background: #ffffff;
+}
+
+.type-option:last-child {
+  grid-column: 1 / 3;
+}
+
+.type-option__label {
+  color: #26332f;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.type-option__description {
+  margin-top: 6rpx;
+  color: #74807c;
+  font-size: 20rpx;
+  line-height: 1.4;
+}
+
+.card-list {
+  margin-top: 24rpx;
+}
+
+.manage-card {
+  margin-bottom: 16rpx;
+  overflow: hidden;
+  border: 1rpx solid #ddd7ce;
+  border-radius: 12rpx;
+  background: #ffffff;
+}
+
+.manage-card__main {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 21rpx 22rpx;
+}
+
+.manage-card__position {
+  flex: 0 0 auto;
+  color: #8a938f;
+  font-size: 19rpx;
+}
+
+.manage-card__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.manage-card__type {
+  color: #557d72;
+  font-size: 19rpx;
+  font-weight: 700;
+}
+
+.manage-card__title {
+  margin-top: 3rpx;
+  overflow: hidden;
+  color: #202825;
+  font-size: 28rpx;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage-card__open {
+  color: #c65b4f;
+  font-size: 30rpx;
+}
+
+.manage-card__actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1rpx solid #ebe6df;
+}
+
+.action-button {
+  margin: 0;
+  padding: 8rpx 0;
+  border: 0;
+  border-right: 1rpx solid #ebe6df;
+  border-radius: 0;
+  color: #52605b;
+  font-size: 21rpx;
+  background: #faf9f6;
+}
+
+.action-button:last-child {
+  border-right: 0;
+}
+
+.action-button[disabled] {
+  color: #b8bdbb;
+  background: #f5f3ef;
+}
+
+.action-button--danger {
+  color: #b34e49;
+}
+
+.state-card {
+  margin-top: 32rpx;
+  padding: 38rpx 30rpx;
+  border: 1rpx solid #ddd7ce;
+  border-radius: 12rpx;
+  text-align: center;
+  background: #ffffff;
+}
+
+.state-card__title {
+  color: #202825;
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.state-card__description {
+  margin-top: 10rpx;
+  color: #6e7975;
+  font-size: 23rpx;
+  line-height: 1.55;
+}

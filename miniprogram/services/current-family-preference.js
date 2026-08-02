@@ -2,6 +2,13 @@ const CURRENT_FAMILY_KEY = "currentFamilyId";
 
 function createCurrentFamilyPreference(storage) {
   return {
+    peekId() {
+      const savedFamilyId = storage.get(CURRENT_FAMILY_KEY);
+      return typeof savedFamilyId === "string"
+        ? savedFamilyId
+        : "";
+    },
+
     resolve(families) {
       const savedFamilyId = storage.get(CURRENT_FAMILY_KEY);
       const savedFamily = families.find(

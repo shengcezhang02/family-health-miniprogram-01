@@ -4,6 +4,7 @@ function createCloudHealthItemStore(db) {
   const templates = db.collection("health_templates");
   const records = db.collection("health_records");
   const reminders = db.collection("one_time_reminders");
+  const recurringRules = db.collection("recurring_rules");
 
   function withoutDocumentId(document) {
     const { _id, ...data } = document;
@@ -272,6 +273,308 @@ function createCloudHealthItemStore(db) {
         return {
           outcome: "created",
           reminder,
+        };
+      });
+    },
+
+    async createRecurringRule(rule) {
+      return db.runTransaction(async (transaction) => {
+        const transactionRules =
+          transaction.collection("recurring_rules");
+        const existingResult = await transactionRules
+          .where({
+            _id: rule._id,
+          })
+          .limit(1)
+          .get();
+        const existing = existingResult.data[0] ?? null;
+
+        if (existing) {
+          return {
+            outcome: "replayed",
+            rule: existing,
+          };
+        }
+
+        await transactionRules.doc(rule._id).set({
+          data: withoutDocumentId(rule),
+        });
+
+        return {
+          outcome: "created",
+          rule,
+        };
+      });
+    },
+
+    async getRecurringRuleById(ruleId) {
+      const result = await recurringRules.doc(ruleId).get();
+      return result.data ?? null;
+    },
+
+    async updateRecurringRule({
+      ruleId,
+      familyId,
+      expectedRevision,
+      values,
+      remark,
+      startDate,
+      endDate,
+      repeat,
+      dailyTimes,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const membershipResult = await transaction
+          .collection("family_memberships")
+          .where({
+            familyId,
+            userId: updatedByUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!membershipResult.data[0]) {
+          return {
+            outcome: "permission-denied",
+          };
+        }
+
+        const transactionRules =
+          transaction.collection("recurring_rules");
+        const ruleResult = await transactionRules
+          .where({
+            _id: ruleId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const existing = ruleResult.data[0] ?? null;
+
+        if (!existing || existing.deletedAt) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (existing.revision !== expectedRevision) {
+          return {
+            outcome: "revision-conflict",
+          };
+        }
+
+        const { remark: previousRemark, ...ruleWithoutRemark } =
+          existing;
+        const updated = {
+          ...ruleWithoutRemark,
+          values,
+          ...(remark ? { remark } : {}),
+          startDate,
+          endDate,
+          repeat,
+          dailyTimes,
+          updatedByUserId,
+          updatedAt,
+          revision: existing.revision + 1,
+        };
+
+        await transactionRules.doc(ruleId).set({
+          data: withoutDocumentId(updated),
+        });
+
+        return {
+          outcome: "updated",
+          rule: updated,
+        };
+      });
+    },
+
+    async setRecurringRuleStatus({
+      ruleId,
+      familyId,
+      expectedRevision,
+      expectedStatus,
+      nextStatus,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const transactionMemberships = transaction.collection(
+          "family_memberships",
+        );
+        const callerMembershipResult = await transactionMemberships
+          .where({
+            familyId,
+            userId: updatedByUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!callerMembershipResult.data[0]) {
+          return {
+            outcome: "permission-denied",
+          };
+        }
+
+        const transactionRules =
+          transaction.collection("recurring_rules");
+        const ruleResult = await transactionRules
+          .where({
+            _id: ruleId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const existing = ruleResult.data[0] ?? null;
+
+        if (!existing || existing.deletedAt) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (existing.revision !== expectedRevision) {
+          return {
+            outcome: "revision-conflict",
+          };
+        }
+
+        if (existing.status !== expectedStatus) {
+          return {
+            outcome: "invalid-state",
+          };
+        }
+
+        if (nextStatus === "active") {
+          const subjectMembershipResult = await transactionMemberships
+            .where({
+              familyId,
+              userId: existing.subjectUserId,
+              status: "active",
+            })
+            .limit(1)
+            .get();
+
+          if (!subjectMembershipResult.data[0]) {
+            return {
+              outcome: "subject-inactive",
+            };
+          }
+        }
+
+        const {
+          pausedAt,
+          pausedByUserId,
+          pauseReason,
+          ...ruleWithoutPause
+        } = existing;
+        const updated = {
+          ...ruleWithoutPause,
+          status: nextStatus,
+          ...(nextStatus === "paused"
+            ? {
+                pausedAt: updatedAt,
+                pausedByUserId: updatedByUserId,
+                pauseReason: "manual",
+              }
+            : {}),
+          updatedByUserId,
+          updatedAt,
+          revision: existing.revision + 1,
+        };
+
+        await transactionRules.doc(ruleId).set({
+          data: withoutDocumentId(updated),
+        });
+
+        return {
+          outcome: "updated",
+          rule: updated,
+        };
+      });
+    },
+
+    async changeRecurringRuleDeletionState({
+      ruleId,
+      familyId,
+      expectedRevision,
+      updatedByUserId,
+      updatedAt,
+      shouldRestore,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const membershipResult = await transaction
+          .collection("family_memberships")
+          .where({
+            familyId,
+            userId: updatedByUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!membershipResult.data[0]) {
+          return {
+            outcome: "permission-denied",
+          };
+        }
+
+        const transactionRules =
+          transaction.collection("recurring_rules");
+        const ruleResult = await transactionRules
+          .where({
+            _id: ruleId,
+            familyId,
+          })
+          .limit(1)
+          .get();
+        const existing = ruleResult.data[0] ?? null;
+
+        if (
+          !existing ||
+          (shouldRestore
+            ? !existing.deletedAt
+            : Boolean(existing.deletedAt))
+        ) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (existing.revision !== expectedRevision) {
+          return {
+            outcome: "revision-conflict",
+          };
+        }
+
+        const {
+          deletedAt,
+          deletedByUserId,
+          ...ruleWithoutDeletion
+        } = existing;
+        const updated = {
+          ...ruleWithoutDeletion,
+          ...(shouldRestore
+            ? {}
+            : {
+                deletedAt: updatedAt,
+                deletedByUserId: updatedByUserId,
+              }),
+          updatedByUserId,
+          updatedAt,
+          revision: existing.revision + 1,
+        };
+
+        await transactionRules.doc(ruleId).set({
+          data: withoutDocumentId(updated),
+        });
+
+        return {
+          outcome: "updated",
+          rule: updated,
         };
       });
     },

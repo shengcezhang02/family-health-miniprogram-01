@@ -68,6 +68,7 @@ Page({
     const familyName = options.familyName
       ? decodeURIComponent(options.familyName)
       : "当前家庭";
+    this._requestedUserId = options.userId || "";
 
     this.setData({
       familyId,
@@ -105,10 +106,18 @@ Page({
 
     try {
       const result = await profilePageLoader.load(this.data.familyId);
-      const selectedMemberIndex = Math.max(
-        result.members.findIndex((member) => member.isSelf),
-        0,
-      );
+      const requestedMemberIndex = this._requestedUserId
+        ? result.members.findIndex(
+            (member) => member.id === this._requestedUserId,
+          )
+        : -1;
+      const selectedMemberIndex =
+        requestedMemberIndex >= 0
+          ? requestedMemberIndex
+          : Math.max(
+              result.members.findIndex((member) => member.isSelf),
+              0,
+            );
 
       this.setData({
         familyName: result.family.name,

@@ -1,0 +1,39 @@
+<view class="data-shell">
+  <view class="data-header">
+    <view class="data-header__eyebrow">DATA · {{familyName}}</view>
+    <view class="data-header__title">分析数据与导出</view>
+    <view class="data-header__description">表格和 Excel 文件使用同一组筛选条件，只包含获授权的系统预设项目字段。</view>
+  </view>
+
+  <view wx:if="{{cacheNotice || status === 'loading'}}" class="sync-indicator">{{cacheNotice || "正在同步分析数据…"}}</view>
+
+  <view wx:if="{{status === 'error'}}" class="state-card">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <block wx:elif="{{status === 'ready'}}">
+    <view class="filter-bar">
+      <picker range="{{projectOptions}}" range-key="label" value="{{projectIndex}}" bindchange="onProjectChange"><view class="filter-chip">{{projectOptions[projectIndex].label}}⌄</view></picker>
+      <picker range="{{memberOptions}}" range-key="label" value="{{memberIndex}}" bindchange="onMemberChange"><view class="filter-chip">{{memberOptions[memberIndex].label}}⌄</view></picker>
+      <picker range="{{timeRangeOptions}}" range-key="label" value="{{timeRangeIndex}}" bindchange="onTimeRangeChange"><view class="filter-chip">{{timeRangeOptions[timeRangeIndex].label}}⌄</view></picker>
+    </view>
+
+    <view class="table-summary"><text>共 {{rows.length}} 行</text><text>筛选结果即导出范围</text></view>
+
+    <view wx:if="{{rows.length === 0}}" class="empty-card">当前筛选范围没有可导出的数据。</view>
+    <view wx:else class="data-list">
+      <view wx:for="{{rows}}" wx:key="rowKey" class="data-row">
+        <view class="data-row__main">
+          <view><text class="data-row__type">{{item.type}}</text><text class="data-row__member">· {{item.member}}</text></view>
+          <view class="data-row__detail">{{item.detail}}</view>
+        </view>
+        <view class="data-row__time">{{item.time}}</view>
+      </view>
+    </view>
+
+    <button class="export-button" loading="{{exporting}}" bindtap="onExportXlsx">打开并导出 Excel（.xlsx）</button>
+    <view class="privacy-note">Excel 文件生成在本机。打开后可使用右上角菜单转发或保存；分享时请注意家人的健康隐私。</view>
+  </block>
+</view>

@@ -48,9 +48,11 @@ function createApiFor({
   templates = [],
   records = [],
   reminders = [],
+  recurringRules = [],
   now = new Date("2026-07-29T01:30:00.000Z"),
   createRecordId = () => "record-1",
   createReminderId = () => "reminder-1",
+  createRuleId = () => "rule-1",
   createCheckInRecordId = () => "record-for-reminder-1",
 } = {}) {
   const healthItemStore = createInMemoryHealthItemStore({
@@ -59,6 +61,7 @@ function createApiFor({
     templates,
     records,
     reminders,
+    recurringRules,
   });
   const api = createHealthItemApi({
     getCaller: async () => structuredClone(caller),
@@ -66,6 +69,7 @@ function createApiFor({
     getSystemTemplate,
     createRecordId,
     createReminderId,
+    createRuleId,
     createCheckInRecordId,
     now: () => now,
   });
@@ -75,6 +79,71 @@ function createApiFor({
     healthItemStore,
   };
 }
+
+test("有效成员可以创建一份每天多个时间的周期规则", async () => {
+  const caller = createUser();
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    now: new Date("2026-07-30T00:00:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "createRecurringRule",
+    requestId: "req-create-temperature-rule",
+    data: {
+      familyId: "family-1",
+      subjectUserId: caller._id,
+      sourceTemplateId: "sys_temperature",
+      values: {},
+      remark: "早晚测量",
+      startDate: "2026-07-31",
+      endDate: "2026-08-02",
+      repeat: {
+        type: "daily",
+      },
+      dailyTimes: ["20:00", "08:00", "08:00"],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.rule.id, "rule-1");
+  assert.deepEqual(result.data.rule.dailyTimes, ["08:00", "20:00"]);
+  assert.equal(result.data.rule.status, "active");
+  assert.deepEqual(healthItemStore.inspectRecurringRules(), [
+    {
+      _id: "rule-1",
+      familyId: "family-1",
+      subjectUserId: "user-1",
+      sourceTemplateType: "system",
+      sourceTemplateId: "sys_temperature",
+      templateNameSnapshot: "体温",
+      fieldSchemaSnapshot: [
+        {
+          key: "temperature",
+          label: "体温",
+          type: "number",
+          unit: "℃",
+          required: true,
+          sortOrder: 10,
+        },
+      ],
+      values: {},
+      remark: "早晚测量",
+      startDate: "2026-07-31",
+      endDate: "2026-08-02",
+      repeat: {
+        type: "daily",
+      },
+      dailyTimes: ["08:00", "20:00"],
+      status: "active",
+      createdByUserId: "user-1",
+      updatedByUserId: "user-1",
+      revision: 1,
+      createdAt: new Date("2026-07-30T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-30T00:00:00.000Z"),
+    },
+  ]);
+});
 
 function createPendingReminder({
   id = "reminder-1",
@@ -113,6 +182,213 @@ function createPendingReminder({
     updatedAt: new Date("2026-07-29T01:00:00.000Z"),
   };
 }
+
+function createRecurringRule({
+  id = "rule-1",
+  familyId = "family-1",
+  subjectUserId = "user-1",
+  status = "active",
+  revision = 1,
+} = {}) {
+  return {
+    _id: id,
+    familyId,
+    subjectUserId,
+    sourceTemplateType: "system",
+    sourceTemplateId: "sys_temperature",
+    templateNameSnapshot: "体温",
+    fieldSchemaSnapshot: [
+      {
+        key: "temperature",
+        label: "体温",
+        type: "number",
+        unit: "℃",
+        required: true,
+        sortOrder: 10,
+      },
+    ],
+    values: {},
+    remark: "早晚测量",
+    startDate: "2026-07-31",
+    endDate: "2026-08-02",
+    repeat: {
+      type: "daily",
+    },
+    dailyTimes: ["08:00", "20:00"],
+    status,
+    ...(status === "paused"
+      ? {
+          pausedAt: new Date("2026-07-30T01:00:00.000Z"),
+          pausedByUserId: "user-1",
+          pauseReason: "manual",
+        }
+      : {}),
+    createdByUserId: "user-1",
+    updatedByUserId: "user-1",
+    revision,
+    createdAt: new Date("2026-07-30T00:00:00.000Z"),
+    updatedAt: new Date("2026-07-30T00:00:00.000Z"),
+  };
+}
+
+test("周期规则支持周重复和隔日重复", async () => {
+  const weekly = createApiFor({
+    createRuleId: () => "rule-weekly",
+  });
+  const interval = createApiFor({
+    createRuleId: () => "rule-interval",
+  });
+
+  const weeklyResult = await weekly.api.handle({
+    action: "createRecurringRule",
+    requestId: "req-weekly",
+    data: {
+      familyId: "family-1",
+      subjectUserId: "user-1",
+      sourceTemplateId: "sys_temperature",
+      values: {},
+      startDate: "2026-07-31",
+      endDate: "2026-08-31",
+      repeat: {
+        type: "weekly",
+        weekdays: [5, 1, 5],
+      },
+      dailyTimes: ["08:00"],
+    },
+  });
+  const intervalResult = await interval.api.handle({
+    action: "createRecurringRule",
+    requestId: "req-interval",
+    data: {
+      familyId: "family-1",
+      subjectUserId: "user-1",
+      sourceTemplateId: "sys_temperature",
+      values: {},
+      startDate: "2026-07-31",
+      endDate: "2026-08-31",
+      repeat: {
+        type: "interval_days",
+        intervalDays: 2,
+      },
+      dailyTimes: ["08:00"],
+    },
+  });
+
+  assert.equal(weeklyResult.ok, true);
+  assert.deepEqual(weeklyResult.data.rule.repeat, {
+    type: "weekly",
+    weekdays: [1, 5],
+  });
+  assert.equal(intervalResult.ok, true);
+  assert.deepEqual(intervalResult.data.rule.repeat, {
+    type: "interval_days",
+    intervalDays: 2,
+  });
+});
+
+test("周期规则可以暂停和恢复并保留清楚的审计状态", async () => {
+  const { api, healthItemStore } = createApiFor({
+    recurringRules: [createRecurringRule()],
+    now: new Date("2026-07-30T02:00:00.000Z"),
+  });
+
+  const paused = await api.handle({
+    action: "pauseRule",
+    data: {
+      ruleId: "rule-1",
+      expectedRevision: 1,
+    },
+  });
+  const resumed = await api.handle({
+    action: "resumeRule",
+    data: {
+      ruleId: "rule-1",
+      expectedRevision: 2,
+    },
+  });
+
+  assert.equal(paused.ok, true);
+  assert.equal(paused.data.rule.status, "paused");
+  assert.equal(paused.data.rule.pauseReason, "manual");
+  assert.equal(
+    paused.data.rule.pausedAt,
+    "2026-07-30T02:00:00.000Z",
+  );
+  assert.equal(resumed.ok, true);
+  assert.equal(resumed.data.rule.status, "active");
+  assert.equal(Object.hasOwn(resumed.data.rule, "pausedAt"), false);
+  assert.equal(
+    healthItemStore.inspectRecurringRules()[0].revision,
+    3,
+  );
+});
+
+test("修改周期规则只改变可编辑内容并保留启用状态", async () => {
+  const { api } = createApiFor({
+    recurringRules: [createRecurringRule()],
+    now: new Date("2026-07-30T03:00:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "updateHealthItem",
+    data: {
+      ruleId: "rule-1",
+      expectedRevision: 1,
+      values: {},
+      remark: "改为工作日测量",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      repeat: {
+        type: "weekly",
+        weekdays: [1, 2, 3, 4, 5],
+      },
+      dailyTimes: ["09:00"],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.rule.status, "active");
+  assert.equal(result.data.rule.startDate, "2026-08-01");
+  assert.deepEqual(result.data.rule.dailyTimes, ["09:00"]);
+  assert.equal(result.data.rule.revision, 2);
+});
+
+test("删除后恢复周期规则会保留删除前的暂停状态", async () => {
+  const { api } = createApiFor({
+    recurringRules: [
+      createRecurringRule({
+        status: "paused",
+      }),
+    ],
+    now: new Date("2026-07-30T04:00:00.000Z"),
+  });
+
+  const deleted = await api.handle({
+    action: "softDeleteItem",
+    data: {
+      ruleId: "rule-1",
+      expectedRevision: 1,
+    },
+  });
+  const restored = await api.handle({
+    action: "restoreItem",
+    data: {
+      ruleId: "rule-1",
+      expectedRevision: 2,
+    },
+  });
+
+  assert.equal(deleted.ok, true);
+  assert.equal(deleted.data.rule.status, "paused");
+  assert.equal(
+    deleted.data.rule.deletedAt,
+    "2026-07-30T04:00:00.000Z",
+  );
+  assert.equal(restored.ok, true);
+  assert.equal(restored.data.rule.status, "paused");
+  assert.equal(Object.hasOwn(restored.data.rule, "deletedAt"), false);
+  assert.equal(restored.data.needsReconciliation, true);
+});
 
 function createCheckInRecord({
   id = "record-for-reminder-1",

@@ -1,3 +1,5 @@
 {
-  "navigationBarTitleText": "家庭健康"
+  "navigationBarTitleText": "家庭健康",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }

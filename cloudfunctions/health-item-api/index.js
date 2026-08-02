@@ -31,6 +31,11 @@ const api = createHealthItemApi({
       .update(`${callerUserId}\n${requestId}`)
       .digest("hex")
       .slice(0, 32)}`,
+  createRuleId: ({ callerUserId, requestId }) =>
+    `rule-${createHash("sha256")
+      .update(`${callerUserId}\n${requestId}`)
+      .digest("hex")
+      .slice(0, 32)}`,
   createCheckInRecordId: ({ reminderId }) =>
     `record-${createHash("sha256")
       .update(`check-in\n${reminderId}`)

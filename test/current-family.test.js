@@ -55,3 +55,13 @@ test("没有有效家庭时清除本地家庭 ID", () => {
   assert.equal(preference.resolve([]), null);
   assert.equal(storage.get("currentFamilyId"), undefined);
 });
+
+test("启动阶段可以只读取上次家庭 ID，等待云端随后确认", () => {
+  const preference = createCurrentFamilyPreference(
+    createMemoryStorage({
+      currentFamilyId: "family-2",
+    }),
+  );
+
+  assert.equal(preference.peekId(), "family-2");
+});

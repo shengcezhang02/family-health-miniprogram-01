@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   buildNotificationTimeValues,
+  formatNotificationTimeSummary,
   toNotificationTimeRows,
 } = require("../miniprogram/services/reminder-notification-times");
 
@@ -47,4 +48,17 @@ test("已有通知时间可以恢复为日期和时间选择器数据", () => {
       time: "21:00",
     },
   ]);
+});
+
+test("提醒条目把多个通知时间整理为一行可截断的文字", () => {
+  const values = [
+    new Date(2026, 6, 31, 7, 45).toISOString(),
+    new Date(2026, 6, 31, 7, 55).toISOString(),
+    new Date(2026, 6, 31, 8, 5).toISOString(),
+  ];
+
+  assert.equal(
+    formatNotificationTimeSummary(values),
+    "7月31日 07:45、7月31日 07:55、7月31日 08:05",
+  );
 });

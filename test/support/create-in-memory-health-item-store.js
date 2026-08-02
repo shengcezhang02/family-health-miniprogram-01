@@ -4,6 +4,7 @@ function createInMemoryHealthItemStore({
   templates = [],
   records = [],
   reminders = [],
+  recurringRules = [],
 } = {}) {
   const usersByOpenId = new Map(
     users.map((user) => [user.wechatOpenId, structuredClone(user)]),
@@ -27,6 +28,12 @@ function createInMemoryHealthItemStore({
     reminders.map((reminder) => [
       reminder._id,
       structuredClone(reminder),
+    ]),
+  );
+  const recurringRulesById = new Map(
+    recurringRules.map((rule) => [
+      rule._id,
+      structuredClone(rule),
     ]),
   );
 
@@ -200,6 +207,191 @@ function createInMemoryHealthItemStore({
       return {
         outcome: "created",
         reminder: structuredClone(reminder),
+      };
+    },
+
+    async createRecurringRule(rule) {
+      const existing = recurringRulesById.get(rule._id);
+
+      if (existing) {
+        return {
+          outcome: "replayed",
+          rule: structuredClone(existing),
+        };
+      }
+
+      recurringRulesById.set(rule._id, structuredClone(rule));
+      return {
+        outcome: "created",
+        rule: structuredClone(rule),
+      };
+    },
+
+    async getRecurringRuleById(ruleId) {
+      return structuredClone(recurringRulesById.get(ruleId) ?? null);
+    },
+
+    async updateRecurringRule({
+      ruleId,
+      familyId,
+      expectedRevision,
+      values,
+      remark,
+      startDate,
+      endDate,
+      repeat,
+      dailyTimes,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      const existing = recurringRulesById.get(ruleId);
+
+      if (
+        !existing ||
+        existing.familyId !== familyId ||
+        existing.deletedAt
+      ) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (existing.revision !== expectedRevision) {
+        return {
+          outcome: "revision-conflict",
+        };
+      }
+
+      const { remark: previousRemark, ...ruleWithoutRemark } = existing;
+      const updated = {
+        ...ruleWithoutRemark,
+        values: structuredClone(values),
+        ...(remark ? { remark } : {}),
+        startDate,
+        endDate,
+        repeat: structuredClone(repeat),
+        dailyTimes: structuredClone(dailyTimes),
+        updatedByUserId,
+        updatedAt,
+        revision: existing.revision + 1,
+      };
+      recurringRulesById.set(ruleId, updated);
+
+      return {
+        outcome: "updated",
+        rule: structuredClone(updated),
+      };
+    },
+
+    async setRecurringRuleStatus({
+      ruleId,
+      familyId,
+      expectedRevision,
+      expectedStatus,
+      nextStatus,
+      updatedByUserId,
+      updatedAt,
+    }) {
+      const existing = recurringRulesById.get(ruleId);
+
+      if (
+        !existing ||
+        existing.familyId !== familyId ||
+        existing.deletedAt
+      ) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (existing.revision !== expectedRevision) {
+        return {
+          outcome: "revision-conflict",
+        };
+      }
+
+      if (existing.status !== expectedStatus) {
+        return {
+          outcome: "invalid-state",
+        };
+      }
+
+      const {
+        pausedAt,
+        pausedByUserId,
+        pauseReason,
+        ...ruleWithoutPause
+      } = existing;
+      const updated = {
+        ...ruleWithoutPause,
+        status: nextStatus,
+        ...(nextStatus === "paused"
+          ? {
+              pausedAt: updatedAt,
+              pausedByUserId: updatedByUserId,
+              pauseReason: "manual",
+            }
+          : {}),
+        updatedByUserId,
+        updatedAt,
+        revision: existing.revision + 1,
+      };
+      recurringRulesById.set(ruleId, updated);
+
+      return {
+        outcome: "updated",
+        rule: structuredClone(updated),
+      };
+    },
+
+    async changeRecurringRuleDeletionState({
+      ruleId,
+      familyId,
+      expectedRevision,
+      updatedByUserId,
+      updatedAt,
+      shouldRestore,
+    }) {
+      const existing = recurringRulesById.get(ruleId);
+
+      if (
+        !existing ||
+        existing.familyId !== familyId ||
+        (shouldRestore ? !existing.deletedAt : Boolean(existing.deletedAt))
+      ) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (existing.revision !== expectedRevision) {
+        return {
+          outcome: "revision-conflict",
+        };
+      }
+
+      const {
+        deletedAt,
+        deletedByUserId,
+        ...ruleWithoutDeletion
+      } = existing;
+      const updated = {
+        ...ruleWithoutDeletion,
+        ...(shouldRestore
+          ? {}
+          : {
+              deletedAt: updatedAt,
+              deletedByUserId: updatedByUserId,
+            }),
+        updatedByUserId,
+        updatedAt,
+        revision: existing.revision + 1,
+      };
+      recurringRulesById.set(ruleId, updated);
+
+      return {
+        outcome: "updated",
+        rule: structuredClone(updated),
       };
     },
 
@@ -418,6 +610,12 @@ function createInMemoryHealthItemStore({
     inspectReminders() {
       return [...remindersById.values()].map((reminder) =>
         structuredClone(reminder),
+      );
+    },
+
+    inspectRecurringRules() {
+      return [...recurringRulesById.values()].map((rule) =>
+        structuredClone(rule),
       );
     },
   };

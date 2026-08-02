@@ -29,7 +29,7 @@
       <view class="analysis-card__body">
         <view class="analysis-card__title">{{item.title}}</view>
         <view class="analysis-card__description">{{item.description}}</view>
-        <view class="analysis-card__status">后续里程碑</view>
+        <view class="analysis-card__status">打开分析</view>
       </view>
       <view class="analysis-card__arrow">›</view>
     </button>

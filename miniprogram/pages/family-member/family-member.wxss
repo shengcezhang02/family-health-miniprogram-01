@@ -1,0 +1,152 @@
+.member-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 46rpx 34rpx 80rpx;
+  background: #f6f3ee;
+}
+
+.page-header__eyebrow {
+  color: #d95c4f;
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 3rpx;
+}
+
+.page-header__title {
+  margin-top: 14rpx;
+  color: #202825;
+  font-size: 48rpx;
+  font-weight: 760;
+}
+
+.page-header__description {
+  margin-top: 12rpx;
+  color: #66716d;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.state-card,
+.member-card,
+.section,
+.rule-note {
+  margin-top: 28rpx;
+  padding: 28rpx;
+  border: 1rpx solid #e2ddd5;
+  border-radius: 14rpx;
+  background: #ffffff;
+}
+
+.state-card {
+  color: #66716d;
+  font-size: 25rpx;
+  text-align: center;
+}
+
+.state-card--error {
+  color: #a14743;
+}
+
+.member-card {
+  text-align: center;
+}
+
+.member-card__avatar {
+  display: flex;
+  width: 88rpx;
+  height: 88rpx;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  color: #ffffff;
+  font-size: 34rpx;
+  font-weight: 700;
+  background: #4f7fa3;
+}
+
+.member-card__name {
+  margin-top: 15rpx;
+  color: #202825;
+  font-size: 32rpx;
+  font-weight: 730;
+}
+
+.role-badge {
+  display: inline-flex;
+  margin-top: 10rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: #2e6f68;
+  font-size: 21rpx;
+  font-weight: 700;
+  background: #e7f0ed;
+}
+
+.section__title {
+  color: #202825;
+  font-size: 29rpx;
+  font-weight: 730;
+}
+
+.section__hint,
+.rule-note {
+  color: #6f7975;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.section__hint {
+  margin-top: 14rpx;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  width: 100%;
+  margin: 18rpx 0 0;
+  border: 0;
+  border-radius: 10rpx;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.primary-button {
+  color: #ffffff;
+  background: #2e6f68;
+}
+
+.secondary-button {
+  color: #2e6f68;
+  background: #e7f0ed;
+}
+
+.danger-button {
+  color: #a14743;
+  border: 1rpx solid #d8aaa6;
+  background: #ffffff;
+}
+
+.feedback {
+  margin-top: 20rpx;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid #e6c1be;
+  border-radius: 9rpx;
+  color: #a14743;
+  font-size: 22rpx;
+  background: #faeceb;
+}
+
+.feedback--success {
+  color: #2e6f68;
+  border-color: #c7ddd5;
+  background: #e7f0ed;
+}
+
+button::after {
+  border: 0;
+}
+
+button[disabled] {
+  opacity: 0.48;
+}

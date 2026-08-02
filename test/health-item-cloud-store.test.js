@@ -136,6 +136,69 @@ test("新提醒事务使用固定文档 ID 保存到独立集合", async () => {
   assert.deepEqual(savedDocument, reminder);
 });
 
+test("新周期规则事务使用固定文档 ID 保存到独立集合", async () => {
+  let savedDocument = null;
+  const db = {
+    collection() {
+      return {};
+    },
+
+    async runTransaction(handler) {
+      return handler({
+        collection(name) {
+          assert.equal(name, "recurring_rules");
+
+          return {
+            where(query) {
+              assert.deepEqual(query, {
+                _id: "rule-1",
+              });
+              return {
+                limit(limit) {
+                  assert.equal(limit, 1);
+                  return {
+                    async get() {
+                      return {
+                        data: [],
+                      };
+                    },
+                  };
+                },
+              };
+            },
+
+            doc(ruleId) {
+              assert.equal(ruleId, "rule-1");
+              return {
+                async set({ data }) {
+                  savedDocument = {
+                    _id: ruleId,
+                    ...data,
+                  };
+                },
+              };
+            },
+          };
+        },
+      });
+    },
+  };
+  const store = createCloudHealthItemStore(db);
+  const rule = {
+    _id: "rule-1",
+    familyId: "family-1",
+    status: "active",
+  };
+
+  const result = await store.createRecurringRule(rule);
+
+  assert.deepEqual(result, {
+    outcome: "created",
+    rule,
+  });
+  assert.deepEqual(savedDocument, rule);
+});
+
 test("提醒打卡事务同时保存关联记录并完成提醒", async () => {
   const saved = new Map();
   const pendingReminder = {

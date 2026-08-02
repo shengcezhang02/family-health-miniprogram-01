@@ -5,6 +5,15 @@ class ApiError extends Error {
   }
 }
 
+function cloneRepeat(repeat) {
+  return {
+    ...repeat,
+    ...(Array.isArray(repeat.weekdays)
+      ? { weekdays: [...repeat.weekdays] }
+      : {}),
+  };
+}
+
 function toIsoString(value) {
   return value instanceof Date ? value.toISOString() : value;
 }
@@ -86,6 +95,146 @@ function toReminderSummary(reminder) {
   }
 
   return summary;
+}
+
+function toRecurringRuleSummary(rule) {
+  const summary = {
+    id: rule._id,
+    familyId: rule.familyId,
+    subjectUserId: rule.subjectUserId,
+    sourceTemplateType: rule.sourceTemplateType,
+    sourceTemplateId: rule.sourceTemplateId,
+    templateNameSnapshot: rule.templateNameSnapshot,
+    fieldSchemaSnapshot: rule.fieldSchemaSnapshot.map((field) => ({
+      ...field,
+    })),
+    values: { ...rule.values },
+    startDate: rule.startDate,
+    endDate: rule.endDate,
+    repeat: cloneRepeat(rule.repeat),
+    dailyTimes: [...rule.dailyTimes],
+    status: rule.status,
+    createdByUserId: rule.createdByUserId,
+    updatedByUserId: rule.updatedByUserId,
+    revision: rule.revision,
+    createdAt: toIsoString(rule.createdAt),
+    updatedAt: toIsoString(rule.updatedAt),
+  };
+
+  if (rule.remark) {
+    summary.remark = rule.remark;
+  }
+
+  if (rule.pausedAt) {
+    summary.pausedAt = toIsoString(rule.pausedAt);
+    summary.pausedByUserId = rule.pausedByUserId;
+    summary.pauseReason = rule.pauseReason;
+  }
+
+  if (rule.deletedAt) {
+    summary.deletedAt = toIsoString(rule.deletedAt);
+    summary.deletedByUserId = rule.deletedByUserId;
+  }
+
+  return summary;
+}
+
+function validateRecurringSchedule(data) {
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  const isValidDate = (value) =>
+    typeof value === "string" &&
+    datePattern.test(value) &&
+    !Number.isNaN(new Date(`${value}T00:00:00+08:00`).getTime());
+
+  if (
+    !isValidDate(data.startDate) ||
+    !isValidDate(data.endDate) ||
+    data.startDate > data.endDate
+  ) {
+    throw new ApiError(
+      "INVALID_ARGUMENT",
+      "请选择正确的开始和结束日期",
+    );
+  }
+
+  let repeat;
+
+  if (data.repeat?.type === "daily") {
+    repeat = {
+      type: "daily",
+    };
+  } else if (data.repeat?.type === "weekly") {
+    const sourceWeekdays = Array.isArray(data.repeat.weekdays)
+      ? data.repeat.weekdays
+      : [];
+    const weekdays = [
+      ...new Set(
+        sourceWeekdays.filter(
+          (weekday) =>
+            Number.isInteger(weekday) && weekday >= 1 && weekday <= 7,
+        ),
+      ),
+    ].sort((left, right) => left - right);
+
+    if (
+      weekdays.length === 0 ||
+      sourceWeekdays.some(
+        (weekday) =>
+          !Number.isInteger(weekday) || weekday < 1 || weekday > 7,
+      )
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请选择正确的每周重复日期",
+      );
+    }
+
+    repeat = {
+      type: "weekly",
+      weekdays,
+    };
+  } else if (data.repeat?.type === "interval_days") {
+    if (
+      !Number.isInteger(data.repeat.intervalDays) ||
+      data.repeat.intervalDays < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "每隔天数必须是正整数",
+      );
+    }
+
+    repeat = {
+      type: "interval_days",
+      intervalDays: data.repeat.intervalDays,
+    };
+  } else {
+    throw new ApiError("INVALID_ARGUMENT", "重复方式不正确");
+  }
+
+  const sourceDailyTimes = Array.isArray(data.dailyTimes)
+    ? data.dailyTimes
+    : [];
+  const invalidDailyTime = sourceDailyTimes.some(
+    (value) =>
+      typeof value !== "string" ||
+      !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value),
+  );
+  const dailyTimes = [...new Set(sourceDailyTimes)].sort();
+
+  if (dailyTimes.length === 0 || invalidDailyTime) {
+    throw new ApiError(
+      "INVALID_ARGUMENT",
+      "请至少设置一个正确的每日时间",
+    );
+  }
+
+  return {
+    startDate: data.startDate,
+    endDate: data.endDate,
+    repeat,
+    dailyTimes,
+  };
 }
 
 function toActiveTemplate(template) {
@@ -313,6 +462,7 @@ function createHealthItemApi({
   getSystemTemplate,
   createRecordId,
   createReminderId,
+  createRuleId,
   createCheckInRecordId,
   now,
   reportError = () => {},
@@ -405,6 +555,90 @@ function createHealthItemApi({
 
     return {
       record: toRecordSummary(result.record),
+    };
+  }
+
+  async function changeRecurringRuleDeletionState(
+    data,
+    shouldRestore,
+  ) {
+    if (
+      typeof data.ruleId !== "string" ||
+      !data.ruleId ||
+      !Number.isInteger(data.expectedRevision) ||
+      data.expectedRevision < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请提供周期规则和当前版本",
+      );
+    }
+
+    const [caller, rule] = await Promise.all([
+      getCaller(),
+      healthItemStore.getRecurringRuleById(data.ruleId),
+    ]);
+
+    if (
+      !rule ||
+      (shouldRestore ? !rule.deletedAt : Boolean(rule.deletedAt))
+    ) {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        shouldRestore
+          ? "没有找到可恢复的周期规则"
+          : "这个周期规则不存在或已删除",
+      );
+    }
+
+    const membership = await healthItemStore.getActiveMembership(
+      rule.familyId,
+      caller._id,
+    );
+
+    if (!membership) {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以更改周期规则",
+      );
+    }
+
+    const result =
+      await healthItemStore.changeRecurringRuleDeletionState({
+        ruleId: rule._id,
+        familyId: rule.familyId,
+        expectedRevision: data.expectedRevision,
+        updatedByUserId: caller._id,
+        updatedAt: now(),
+        shouldRestore,
+      });
+
+    if (result.outcome === "not-found") {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        shouldRestore
+          ? "没有找到可恢复的周期规则"
+          : "这个周期规则不存在或已删除",
+      );
+    }
+
+    if (result.outcome === "permission-denied") {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以修改周期规则",
+      );
+    }
+
+    if (result.outcome === "revision-conflict") {
+      throw new ApiError(
+        "REVISION_CONFLICT",
+        "周期规则已被其他人修改，请刷新后重试",
+      );
+    }
+
+    return {
+      rule: toRecurringRuleSummary(result.rule),
+      needsReconciliation: true,
     };
   }
 
@@ -536,7 +770,328 @@ function createHealthItemApi({
     };
   }
 
+  async function updateRecurringRule(data) {
+    if (
+      typeof data.ruleId !== "string" ||
+      !data.ruleId ||
+      !Number.isInteger(data.expectedRevision) ||
+      data.expectedRevision < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请提供周期规则和当前版本",
+      );
+    }
+
+    const lockedFields = [
+      "familyId",
+      "subjectUserId",
+      "sourceTemplateType",
+      "sourceTemplateId",
+      "templateNameSnapshot",
+      "fieldSchemaSnapshot",
+      "status",
+    ];
+
+    if (lockedFields.some((field) => Object.hasOwn(data, field))) {
+      throw new ApiError(
+        "LOCKED_FIELDS_CANNOT_CHANGE",
+        "周期规则保存后不能更换所属人、模板、表单结构或状态",
+      );
+    }
+
+    const [caller, rule] = await Promise.all([
+      getCaller(),
+      healthItemStore.getRecurringRuleById(data.ruleId),
+    ]);
+
+    if (!rule || rule.deletedAt) {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个周期规则不存在或已删除",
+      );
+    }
+
+    const membership = await healthItemStore.getActiveMembership(
+      rule.familyId,
+      caller._id,
+    );
+
+    if (!membership) {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以修改周期规则",
+      );
+    }
+
+    const schedule = validateRecurringSchedule(data);
+    const input = validateRecordInput(
+      {
+        ...data,
+        familyId: rule.familyId,
+        subjectUserId: rule.subjectUserId,
+        sourceTemplateId: rule.sourceTemplateId,
+        occurredAt: `${schedule.startDate}T00:00:00+08:00`,
+      },
+      {
+        fields: rule.fieldSchemaSnapshot.map((field) => ({
+          ...field,
+          required: false,
+        })),
+      },
+    );
+    const result = await healthItemStore.updateRecurringRule({
+      ruleId: rule._id,
+      familyId: rule.familyId,
+      expectedRevision: data.expectedRevision,
+      values: input.values,
+      remark: input.remark,
+      ...schedule,
+      updatedByUserId: caller._id,
+      updatedAt: now(),
+    });
+
+    if (result.outcome === "not-found") {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个周期规则不存在或已删除",
+      );
+    }
+
+    if (result.outcome === "permission-denied") {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以修改周期规则",
+      );
+    }
+
+    if (result.outcome === "revision-conflict") {
+      throw new ApiError(
+        "REVISION_CONFLICT",
+        "周期规则已被其他人修改，请刷新后重试",
+      );
+    }
+
+    return {
+      rule: toRecurringRuleSummary(result.rule),
+      needsReconciliation: true,
+    };
+  }
+
+  async function changeRuleStatus(data, nextStatus) {
+    if (
+      typeof data.ruleId !== "string" ||
+      !data.ruleId ||
+      !Number.isInteger(data.expectedRevision) ||
+      data.expectedRevision < 1
+    ) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "请提供周期规则和当前版本",
+      );
+    }
+
+    const [caller, rule] = await Promise.all([
+      getCaller(),
+      healthItemStore.getRecurringRuleById(data.ruleId),
+    ]);
+
+    if (!rule || rule.deletedAt) {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个周期规则不存在或已删除",
+      );
+    }
+
+    const [callerMembership, subjectMembership] = await Promise.all([
+      healthItemStore.getActiveMembership(rule.familyId, caller._id),
+      healthItemStore.getActiveMembership(
+        rule.familyId,
+        rule.subjectUserId,
+      ),
+    ]);
+
+    if (!callerMembership) {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以更改周期规则",
+      );
+    }
+
+    if (nextStatus === "active" && !subjectMembership) {
+      throw new ApiError(
+        "SUBJECT_INACTIVE",
+        "数据所属人已不在家庭中，不能恢复周期规则",
+      );
+    }
+
+    const result = await healthItemStore.setRecurringRuleStatus({
+      ruleId: rule._id,
+      familyId: rule.familyId,
+      expectedRevision: data.expectedRevision,
+      expectedStatus: nextStatus === "active" ? "paused" : "active",
+      nextStatus,
+      updatedByUserId: caller._id,
+      updatedAt: now(),
+    });
+
+    if (result.outcome === "not-found") {
+      throw new ApiError(
+        "HEALTH_ITEM_NOT_FOUND",
+        "这个周期规则不存在或已删除",
+      );
+    }
+
+    if (result.outcome === "permission-denied") {
+      throw new ApiError(
+        "HEALTH_ITEM_ACCESS_DENIED",
+        "只有当前家庭的有效成员可以更改周期规则",
+      );
+    }
+
+    if (result.outcome === "subject-inactive") {
+      throw new ApiError(
+        "SUBJECT_INACTIVE",
+        "数据所属人已不在家庭中，不能恢复周期规则",
+      );
+    }
+
+    if (result.outcome === "invalid-state") {
+      throw new ApiError(
+        "RULE_STATE_CONFLICT",
+        nextStatus === "active"
+          ? "这个周期规则当前没有暂停"
+          : "这个周期规则已经暂停",
+      );
+    }
+
+    if (result.outcome === "revision-conflict") {
+      throw new ApiError(
+        "REVISION_CONFLICT",
+        "周期规则已被其他人修改，请刷新后重试",
+      );
+    }
+
+    return {
+      rule: toRecurringRuleSummary(result.rule),
+      needsReconciliation: true,
+    };
+  }
+
   const actions = {
+    async createRecurringRule(data, request) {
+      if (
+        typeof request.requestId !== "string" ||
+        !request.requestId.trim()
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "缺少本次保存的请求编号，请重试",
+        );
+      }
+
+      const sourceTemplateType =
+        data.sourceTemplateType === undefined
+          ? "system"
+          : data.sourceTemplateType;
+
+      if (
+        sourceTemplateType !== "system" &&
+        sourceTemplateType !== "custom"
+      ) {
+        throw new ApiError("INVALID_ARGUMENT", "模板类型不正确");
+      }
+
+      const schedule = validateRecurringSchedule(data);
+
+      const caller = await getCaller();
+      const [callerMembership, subjectMembership] = await Promise.all([
+        healthItemStore.getActiveMembership(data.familyId, caller._id),
+        healthItemStore.getActiveMembership(
+          data.familyId,
+          data.subjectUserId,
+        ),
+      ]);
+
+      if (!callerMembership || !subjectMembership) {
+        throw new ApiError(
+          "HEALTH_ITEM_ACCESS_DENIED",
+          "只能为当前家庭的有效成员创建周期规则",
+        );
+      }
+
+      const sourceTemplate =
+        sourceTemplateType === "system"
+          ? getSystemTemplate(data.sourceTemplateId)
+          : await healthItemStore.getCustomTemplate(
+              data.familyId,
+              data.sourceTemplateId,
+            );
+
+      if (!sourceTemplate || sourceTemplate.status === "inactive") {
+        throw new ApiError(
+          "TEMPLATE_NOT_FOUND",
+          "这个模板不存在或已停用",
+        );
+      }
+
+      const activeTemplate = toActiveTemplate(sourceTemplate);
+      const prepared = appendTemporaryFields(data, activeTemplate);
+      const template = prepared.template;
+      const input = validateRecordInput(
+        {
+          ...data,
+          occurredAt: `${data.startDate}T00:00:00+08:00`,
+          values: prepared.values,
+        },
+        {
+          ...template,
+          fields: template.fields.map((field) => ({
+            ...field,
+            required: false,
+          })),
+        },
+      );
+      const ruleId = createRuleId({
+        callerUserId: caller._id,
+        requestId: request.requestId,
+      });
+      const timestamp = now();
+      const result = await healthItemStore.createRecurringRule({
+        _id: ruleId,
+        familyId: data.familyId,
+        subjectUserId: data.subjectUserId,
+        sourceTemplateType,
+        sourceTemplateId: template.id,
+        templateNameSnapshot: template.name,
+        fieldSchemaSnapshot: template.fields.map((field) => ({
+          ...field,
+        })),
+        values: input.values,
+        ...(input.remark ? { remark: input.remark } : {}),
+        ...schedule,
+        status: "active",
+        createdByUserId: caller._id,
+        updatedByUserId: caller._id,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+
+      return {
+        rule: toRecurringRuleSummary(result.rule),
+        replayed: result.outcome === "replayed",
+      };
+    },
+
+    async pauseRule(data) {
+      return changeRuleStatus(data, "paused");
+    },
+
+    async resumeRule(data) {
+      return changeRuleStatus(data, "active");
+    },
+
     async checkInReminder(data, request) {
       if (
         typeof request.requestId !== "string" ||
@@ -884,6 +1439,36 @@ function createHealthItemApi({
     },
 
     async getHealthItem(data) {
+      if (typeof data.ruleId === "string" && data.ruleId) {
+        const [caller, rule] = await Promise.all([
+          getCaller(),
+          healthItemStore.getRecurringRuleById(data.ruleId),
+        ]);
+
+        if (!rule || rule.deletedAt) {
+          throw new ApiError(
+            "HEALTH_ITEM_NOT_FOUND",
+            "这个周期规则不存在或已删除",
+          );
+        }
+
+        const membership = await healthItemStore.getActiveMembership(
+          rule.familyId,
+          caller._id,
+        );
+
+        if (!membership) {
+          throw new ApiError(
+            "HEALTH_ITEM_ACCESS_DENIED",
+            "只有当前家庭的有效成员可以查看周期规则",
+          );
+        }
+
+        return {
+          rule: toRecurringRuleSummary(rule),
+        };
+      }
+
       if (typeof data.reminderId === "string" && data.reminderId) {
         const [caller, reminder] = await Promise.all([
           getCaller(),
@@ -945,6 +1530,10 @@ function createHealthItemApi({
     },
 
     async updateHealthItem(data) {
+      if (data.ruleId) {
+        return updateRecurringRule(data);
+      }
+
       if (data.reminderId) {
         return updateReminder(data);
       }
@@ -1050,10 +1639,18 @@ function createHealthItemApi({
     },
 
     async softDeleteItem(data) {
+      if (data.ruleId) {
+        return changeRecurringRuleDeletionState(data, false);
+      }
+
       return changeDeletionState(data, false);
     },
 
     async restoreItem(data) {
+      if (data.ruleId) {
+        return changeRecurringRuleDeletionState(data, true);
+      }
+
       return changeDeletionState(data, true);
     },
   };

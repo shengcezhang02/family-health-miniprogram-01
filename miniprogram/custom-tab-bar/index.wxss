@@ -21,8 +21,7 @@
   box-shadow: 0 20rpx 60rpx rgba(18, 57, 44, 0.22);
 }
 
-.quick-add-menu__header,
-.quick-add-menu__item {
+.quick-add-menu__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -44,28 +43,53 @@
   border: 0;
 }
 
+.quick-add-menu__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
 .quick-add-menu__item {
-  width: 100%;
-  min-height: 88rpx;
+  display: flex;
+  width: 172rpx;
+  height: 172rpx;
+  flex: 0 0 172rpx;
   box-sizing: border-box;
-  margin: 14rpx 0 0;
-  padding: 0 22rpx;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7rpx;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border: 1rpx solid #e5e0d8;
-  border-radius: 12rpx;
-  color: #202825;
-  text-align: left;
-  background: #faf9f7;
+  border-radius: 50%;
+  color: #ffffff;
+  text-align: center;
+  background: #d46759;
+  box-shadow: 0 10rpx 20rpx rgba(121, 68, 59, 0.22);
+}
+
+.quick-add-menu__item--1 {
+  background: #4e7894;
+  box-shadow: 0 10rpx 20rpx rgba(53, 88, 112, 0.22);
+}
+
+.quick-add-menu__item--2 {
+  background: #aa7837;
+  box-shadow: 0 10rpx 20rpx rgba(121, 83, 34, 0.22);
+}
+
+.quick-add-menu__item-mark {
+  font-size: 36rpx;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .quick-add-menu__item-title {
   font-size: 27rpx;
   font-weight: 700;
-}
-
-.quick-add-menu__item-arrow {
-  color: #7c8581;
-  font-size: 42rpx;
 }
 
 .main-tab-bar {

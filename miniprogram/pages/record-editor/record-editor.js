@@ -6,6 +6,14 @@ const {
   buildNotificationTimeValues,
   toNotificationTimeRows,
 } = require("../../services/reminder-notification-times");
+const {
+  REPEAT_TYPES,
+  buildRecurringScheduleInput,
+  toRecurringFormState,
+} = require("../../services/recurring-rule-form");
+const {
+  completeHealthItemSave,
+} = require("../../services/health-item-save-feedback");
 
 const recordPageLoader = createRecordPageLoader({
   bootstrapFamily: () => app.callFamilyApi("bootstrap"),
@@ -15,6 +23,16 @@ const recordPageLoader = createRecordPageLoader({
     app.callTemplateApi("listTemplates", { familyId }),
   getRecordTimeline: ({ familyId }) =>
     app.callQueryApi("getRecordTimeline", { familyId }),
+  getCachedFamily: (familyId) =>
+    app.getCachedFamily(familyId),
+  getCachedFamilyMembers: ({ familyId }) =>
+    app.getCachedCloudApi("profile-api", "listFamilyMembers", {
+      familyId,
+    }),
+  getCachedTemplates: ({ familyId }) =>
+    app.getCachedCloudApi("template-api", "listTemplates", {
+      familyId,
+    }),
 });
 
 function pad(value) {
@@ -51,6 +69,17 @@ function getEditorCopy(mode, reminderId) {
     };
   }
 
+  if (mode === "recurring") {
+    return {
+      pageTitle: "周期提醒",
+      pageDescription:
+        "设置日期范围、重复方式和每天的提醒时间。",
+      timeLabel: "周期安排",
+      submitLabel: "保存周期规则",
+      remarkLabel: "规则备注（选填）",
+    };
+  }
+
   return {
     pageTitle: "快速记录",
     pageDescription: "选择记录对象和模板，只填写当前需要的内容。",
@@ -58,6 +87,41 @@ function getEditorCopy(mode, reminderId) {
     submitLabel: "保存记录",
     remarkLabel: "备注（选填）",
   };
+}
+
+function getDateString(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}`;
+}
+
+function getDefaultRecurringState(date = new Date()) {
+  const endDate = new Date(date);
+  endDate.setDate(endDate.getDate() + 29);
+
+  return {
+    startDate: getDateString(date),
+    endDate: getDateString(endDate),
+    repeatType: "daily",
+    repeatTypeIndex: 0,
+    weekdays: [],
+    intervalDays: "",
+    dailyTimeRows: [
+      {
+        time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+      },
+    ],
+  };
+}
+
+function getWeekdayOptions(selectedWeekdays = []) {
+  return ["一", "二", "三", "四", "五", "六", "日"].map(
+    (label, index) => ({
+      value: index + 1,
+      label,
+      selected: selectedWeekdays.includes(index + 1),
+    }),
+  );
 }
 
 function buildChoiceState(template, values) {
@@ -106,12 +170,27 @@ Page({
     occurredTime: "",
     notificationTimeRows: [],
     saving: false,
+    formLocked: true,
+    syncNotice: "",
     errorMessage: "",
     showGoHome: false,
     mode: "record",
     reminderId: "",
     reminderRevision: 0,
     reminderRemark: "",
+    ruleId: "",
+    requestedTemplateId: "",
+    ruleRevision: 0,
+    ruleStatus: "",
+    repeatTypes: REPEAT_TYPES,
+    repeatType: "daily",
+    repeatTypeIndex: 0,
+    weekdayOptions: getWeekdayOptions(),
+    weekdays: [],
+    intervalDays: "",
+    startDate: "",
+    endDate: "",
+    dailyTimeRows: [],
     pageTitle: "快速记录",
     pageDescription: "",
     timeLabel: "发生时间",
@@ -123,13 +202,17 @@ Page({
   onLoad(options) {
     this._saveRequestId = "";
     const mode =
-      options.mode === "reminder" || options.mode === "checkIn"
+      options.mode === "reminder" ||
+      options.mode === "checkIn" ||
+      options.mode === "recurring"
         ? options.mode
         : "record";
     const reminderId = options.reminderId || "";
+    const ruleId = options.ruleId || "";
     const showModeSelector =
-      options.from === "quick-add" && !reminderId;
+      options.from === "quick-add" && !reminderId && !ruleId;
     const editorCopy = getEditorCopy(mode, reminderId);
+    const recurringState = getDefaultRecurringState();
     this.setData({
       familyId: options.familyId || "",
       familyName: options.familyName
@@ -137,23 +220,41 @@ Page({
         : "当前家庭",
       mode,
       reminderId,
+      ruleId,
+      requestedTemplateId: options.templateId || "",
       ...editorCopy,
       ...(showModeSelector
         ? {
             pageTitle: "健康事项编辑",
             pageDescription:
-              "选择记录或一次性提醒；周期提醒将在下一里程碑接入同一页面。",
+              "记录、一次性提醒和周期提醒都从这里创建。",
           }
         : {}),
       showModeSelector,
       ...getLocalDateTimeParts(),
+      ...recurringState,
+      weekdayOptions: getWeekdayOptions(recurringState.weekdays),
     });
     wx.setNavigationBarTitle({
       title: showModeSelector
         ? "健康事项编辑"
         : editorCopy.pageTitle,
     });
-    this.loadEditor();
+
+    const startupSnapshot =
+      !reminderId && !ruleId
+        ? recordPageLoader.getEditorStartupSnapshot(
+            options.familyId || "",
+          )
+        : undefined;
+    if (startupSnapshot) {
+      this.applyEditorResult(startupSnapshot, {
+        fromCache: true,
+      });
+    }
+    this.loadEditor({
+      silent: Boolean(startupSnapshot),
+    });
   },
 
   onRetry() {
@@ -178,32 +279,40 @@ Page({
 
     if (
       this.data.saving ||
+      this.data.formLocked ||
       this.data.reminderId ||
+      this.data.ruleId ||
       mode === this.data.mode
     ) {
       return;
     }
 
-    if (mode === "recurring") {
-      wx.showToast({
-        title: "周期提醒将在 M7 接入",
-        icon: "none",
-      });
-      return;
-    }
-
-    if (mode !== "record" && mode !== "reminder") {
+    if (
+      mode !== "record" &&
+      mode !== "reminder" &&
+      mode !== "recurring"
+    ) {
       return;
     }
 
     const editorCopy = getEditorCopy(mode, "");
+    const recurringState =
+      mode === "recurring" ? getDefaultRecurringState() : {};
     this.markChanged();
     this.setData({
       mode,
       ...editorCopy,
+      ...recurringState,
+      ...(mode === "recurring"
+        ? {
+            weekdayOptions: getWeekdayOptions(
+              recurringState.weekdays,
+            ),
+          }
+        : {}),
       pageTitle: "健康事项编辑",
       pageDescription:
-        "选择记录或一次性提醒；周期提醒将在下一里程碑接入同一页面。",
+        "记录、一次性提醒和周期提醒都从这里创建。",
     });
   },
 
@@ -305,6 +414,82 @@ Page({
     });
   },
 
+  onStartDateChange(event) {
+    this.markChanged();
+    this.setData({
+      startDate: event.detail.value,
+    });
+  },
+
+  onEndDateChange(event) {
+    this.markChanged();
+    this.setData({
+      endDate: event.detail.value,
+    });
+  },
+
+  onRepeatTypeChange(event) {
+    const repeatTypeIndex = Number(event.detail.value);
+    this.markChanged();
+    this.setData({
+      repeatTypeIndex,
+      repeatType: REPEAT_TYPES[repeatTypeIndex].value,
+    });
+  },
+
+  onToggleWeekday(event) {
+    const weekday = Number(event.currentTarget.dataset.weekday);
+    const weekdays = this.data.weekdays.includes(weekday)
+      ? this.data.weekdays.filter((value) => value !== weekday)
+      : this.data.weekdays.concat([weekday]).sort();
+    this.markChanged();
+    this.setData({
+      weekdays,
+      weekdayOptions: getWeekdayOptions(weekdays),
+    });
+  },
+
+  onIntervalDaysInput(event) {
+    this.markChanged();
+    this.setData({
+      intervalDays: event.detail.value,
+    });
+  },
+
+  onAddDailyTime() {
+    this.markChanged();
+    this.setData({
+      dailyTimeRows: this.data.dailyTimeRows.concat([
+        {
+          time: this.data.occurredTime,
+        },
+      ]),
+    });
+  },
+
+  onDailyTimeChange(event) {
+    const index = Number(event.currentTarget.dataset.index);
+    this.markChanged();
+    this.setData({
+      [`dailyTimeRows[${index}].time`]: event.detail.value,
+    });
+  },
+
+  onRemoveDailyTime(event) {
+    const index = Number(event.currentTarget.dataset.index);
+
+    if (this.data.dailyTimeRows.length <= 1) {
+      return;
+    }
+
+    this.markChanged();
+    this.setData({
+      dailyTimeRows: this.data.dailyTimeRows.filter(
+        (row, rowIndex) => rowIndex !== index,
+      ),
+    });
+  },
+
   onAddNotificationTime() {
     this.markChanged();
     this.setData({
@@ -352,7 +537,99 @@ Page({
     });
   },
 
-  async loadEditor() {
+  applyEditorResult(result, { fromCache = false } = {}) {
+    const reminder = result.existingItemResult?.reminder;
+    const rule = result.existingItemResult?.rule;
+    const existingItem = reminder || rule;
+    const selectedMemberIndex = Math.max(
+      result.members.findIndex((member) =>
+        existingItem
+          ? member.id === existingItem.subjectUserId
+          : member.isSelf,
+      ),
+      0,
+    );
+    const selectedTemplateIndex = Math.max(
+      result.templates.findIndex(
+        (template) =>
+          template.id ===
+          (existingItem?.sourceTemplateId ||
+            this.data.requestedTemplateId ||
+            "sys_temperature"),
+      ),
+      0,
+    );
+
+    if (!result.members.length || !result.templates.length) {
+      throw new Error("当前家庭暂时没有可用的成员或记录模板");
+    }
+
+    const selectedTemplate = existingItem
+      ? {
+          id: existingItem.sourceTemplateId,
+          sourceType: existingItem.sourceTemplateType,
+          name: existingItem.templateNameSnapshot,
+          fields: existingItem.fieldSchemaSnapshot,
+        }
+      : result.templates[selectedTemplateIndex];
+    const fieldValues = existingItem?.values || {};
+    const choiceState = buildChoiceState(
+      selectedTemplate,
+      fieldValues,
+    );
+    const reminderDateTime =
+      reminder && this.data.mode === "reminder"
+        ? getLocalDateTimeParts(new Date(reminder.plannedAt))
+        : {};
+    const recurringState = rule
+      ? toRecurringFormState(rule)
+      : {};
+
+    this.setData({
+      status: "ready",
+      formLocked: fromCache,
+      syncNotice: fromCache
+        ? "正在同步最新表单，完成前只能查看"
+        : "",
+      familyName: result.family.name,
+      members: result.members,
+      templates: result.templates,
+      selectedMemberIndex,
+      selectedTemplateIndex,
+      selectedMember: result.members[selectedMemberIndex],
+      selectedTemplate,
+      fieldValues,
+      ...choiceState,
+      temporaryFields: [],
+      reminderRevision: reminder?.revision || 0,
+      reminderRemark: reminder?.remark || "",
+      ruleRevision: rule?.revision || 0,
+      ruleStatus: rule?.status || "",
+      notificationTimeRows:
+        reminder && this.data.mode === "reminder"
+          ? toNotificationTimeRows(
+              reminder.notificationTimes || [],
+            )
+          : [],
+      remark:
+        existingItem &&
+        (this.data.mode === "reminder" ||
+          this.data.mode === "recurring")
+          ? existingItem.remark || ""
+          : "",
+      ...reminderDateTime,
+      ...recurringState,
+      ...(rule
+        ? {
+            weekdayOptions: getWeekdayOptions(
+              recurringState.weekdays,
+            ),
+          }
+        : {}),
+    });
+  },
+
+  async loadEditor({ silent = false } = {}) {
     if (!this.data.familyId) {
       this.setData({
         status: "error",
@@ -362,90 +639,58 @@ Page({
       return;
     }
 
-    this.setData({
-      status: "loading",
-      errorMessage: "",
-      showGoHome: false,
-    });
+    this.setData(
+      silent
+        ? {
+            formLocked: true,
+            syncNotice: "正在同步最新表单，完成前只能查看",
+            errorMessage: "",
+            showGoHome: false,
+          }
+        : {
+            status: "loading",
+            formLocked: true,
+            syncNotice: "正在准备表单…",
+            errorMessage: "",
+            showGoHome: false,
+          },
+    );
 
     try {
       const result = await recordPageLoader.loadEditor(
         this.data.familyId,
+        {
+          loadExistingItem: () => {
+            if (this.data.reminderId) {
+              return app.callHealthItemApi("getHealthItem", {
+                familyId: this.data.familyId,
+                reminderId: this.data.reminderId,
+              });
+            }
+            if (this.data.ruleId) {
+              return app.callHealthItemApi("getHealthItem", {
+                familyId: this.data.familyId,
+                ruleId: this.data.ruleId,
+              });
+            }
+            return null;
+          },
+        },
       );
-      const reminderResult = this.data.reminderId
-        ? await app.callHealthItemApi("getHealthItem", {
-            reminderId: this.data.reminderId,
-          })
-        : null;
-      const reminder = reminderResult?.reminder;
-      const selectedMemberIndex = Math.max(
-        result.members.findIndex((member) =>
-          reminder
-            ? member.id === reminder.subjectUserId
-            : member.isSelf,
-        ),
-        0,
-      );
-      const selectedTemplateIndex = Math.max(
-        result.templates.findIndex(
-          (template) =>
-            template.id ===
-            (reminder?.sourceTemplateId || "sys_temperature"),
-        ),
-        0,
-      );
-
-      if (!result.members.length || !result.templates.length) {
-        throw new Error("当前家庭暂时没有可用的成员或记录模板");
+      this.applyEditorResult(result);
+    } catch (error) {
+      if (silent && this.data.status === "ready") {
+        this.setData({
+          formLocked: true,
+          syncNotice: "同步失败，当前表单暂不可保存",
+        });
+        return;
       }
 
-      const selectedTemplate = reminder
-        ? {
-            id: reminder.sourceTemplateId,
-            sourceType: reminder.sourceTemplateType,
-            name: reminder.templateNameSnapshot,
-            fields: reminder.fieldSchemaSnapshot,
-          }
-        : result.templates[selectedTemplateIndex];
-      const fieldValues = reminder?.values || {};
-      const choiceState = buildChoiceState(
-        selectedTemplate,
-        fieldValues,
-      );
-      const reminderDateTime =
-        reminder && this.data.mode === "reminder"
-          ? getLocalDateTimeParts(new Date(reminder.plannedAt))
-          : {};
-
-      this.setData({
-        status: "ready",
-        familyName: result.family.name,
-        members: result.members,
-        templates: result.templates,
-        selectedMemberIndex,
-        selectedTemplateIndex,
-        selectedMember: result.members[selectedMemberIndex],
-        selectedTemplate,
-        fieldValues,
-        ...choiceState,
-        temporaryFields: [],
-        reminderRevision: reminder?.revision || 0,
-        reminderRemark: reminder?.remark || "",
-        notificationTimeRows:
-          reminder && this.data.mode === "reminder"
-            ? toNotificationTimeRows(
-                reminder.notificationTimes || [],
-              )
-            : [],
-        remark:
-          reminder && this.data.mode === "reminder"
-            ? reminder.remark || ""
-            : "",
-        ...reminderDateTime,
-      });
-    } catch (error) {
       this.setData({
         status: "error",
+        formLocked: true,
+        syncNotice: "",
         errorMessage: error.message || "暂时无法准备快速记录",
         showGoHome: error.code === "FAMILY_ACCESS_DENIED",
       });
@@ -503,7 +748,17 @@ Page({
   },
 
   async onSave() {
-    if (this.data.saving || !this.data.selectedTemplate) {
+    if (
+      this.data.saving ||
+      this.data.formLocked ||
+      !this.data.selectedTemplate
+    ) {
+      if (this.data.formLocked) {
+        wx.showToast({
+          title: "云端同步完成后才能保存",
+          icon: "none",
+        });
+      }
       return;
     }
 
@@ -511,19 +766,37 @@ Page({
     let temporaryFields;
     let occurredAt;
     let notificationTimes = [];
+    let recurringSchedule;
 
     try {
-      values = this.buildValues(this.data.mode !== "reminder");
+      values = this.buildValues(
+        this.data.mode === "record" ||
+          this.data.mode === "checkIn",
+      );
       temporaryFields =
-        this.data.reminderId || this.data.mode === "checkIn"
+        this.data.reminderId ||
+        this.data.ruleId ||
+        this.data.mode === "checkIn"
           ? []
           : this.buildTemporaryFields();
-      occurredAt = new Date(
-        `${this.data.occurredDate}T${this.data.occurredTime}:00`,
-      );
 
-      if (Number.isNaN(occurredAt.getTime())) {
-        throw new Error("请选择有效的记录时间");
+      if (this.data.mode === "recurring") {
+        recurringSchedule = buildRecurringScheduleInput({
+          startDate: this.data.startDate,
+          endDate: this.data.endDate,
+          repeatType: this.data.repeatType,
+          weekdays: this.data.weekdays,
+          intervalDays: this.data.intervalDays,
+          dailyTimeRows: this.data.dailyTimeRows,
+        });
+      } else {
+        occurredAt = new Date(
+          `${this.data.occurredDate}T${this.data.occurredTime}:00`,
+        );
+
+        if (Number.isNaN(occurredAt.getTime())) {
+          throw new Error("请选择有效的记录时间");
+        }
       }
 
       if (this.data.mode === "reminder") {
@@ -596,6 +869,49 @@ Page({
             this._saveRequestId,
           );
         }
+      } else if (this.data.mode === "recurring") {
+        const recurringData = {
+          values,
+          remark: this.data.remark,
+          ...recurringSchedule,
+        };
+
+        if (this.data.ruleId) {
+          await app.callHealthItemApi(
+            "updateHealthItem",
+            {
+              ruleId: this.data.ruleId,
+              expectedRevision: this.data.ruleRevision,
+              ...recurringData,
+            },
+            this._saveRequestId,
+          );
+        } else {
+          await app.callHealthItemApi(
+            "createRecurringRule",
+            {
+              familyId: this.data.familyId,
+              subjectUserId: this.data.selectedMember.id,
+              sourceTemplateType:
+                this.data.selectedTemplate.sourceType,
+              sourceTemplateId: this.data.selectedTemplate.id,
+              temporaryFields,
+              ...recurringData,
+            },
+            this._saveRequestId,
+          );
+        }
+
+        try {
+          await app.callReminderMaterializer({
+            familyId: this.data.familyId,
+          });
+        } catch (materializerError) {
+          console.warn(
+            "周期规则已保存，未来提醒稍后补齐",
+            materializerError,
+          );
+        }
       } else {
         await app.callHealthItemApi(
           "createRecord",
@@ -613,24 +929,63 @@ Page({
           this._saveRequestId,
         );
       }
-      wx.showToast({
-        title:
-          this.data.mode === "checkIn"
-            ? "打卡成功"
-            : this.data.mode === "reminder"
-              ? "提醒已保存"
-              : "记录已保存",
-        icon: "success",
-      });
-      wx.switchTab({
-        url:
-          this.data.mode === "record"
-            ? "/pages/records/records"
-            : "/pages/daily-health/daily-health",
+      await completeHealthItemSave({
+        mode: this.data.mode,
+        showToast: (options) => wx.showToast(options),
+        navigate: (url) =>
+          wx.switchTab({
+            url,
+          }),
       });
     } catch (error) {
       this.setData({
         errorMessage: error.message || "保存失败，请稍后重试",
+      });
+    } finally {
+      this.setData({
+        saving: false,
+      });
+    }
+  },
+
+  async onToggleRuleStatus() {
+    if (
+      this.data.saving ||
+      !this.data.ruleId ||
+      !this.data.ruleRevision
+    ) {
+      return;
+    }
+
+    const action =
+      this.data.ruleStatus === "paused" ? "resumeRule" : "pauseRule";
+    this.setData({
+      saving: true,
+      errorMessage: "",
+    });
+
+    try {
+      const result = await app.callHealthItemApi(action, {
+        ruleId: this.data.ruleId,
+        expectedRevision: this.data.ruleRevision,
+      });
+      await app.callReminderMaterializer({
+        familyId: this.data.familyId,
+      });
+      this.setData({
+        ruleStatus: result.rule.status,
+        ruleRevision: result.rule.revision,
+      });
+      wx.showToast({
+        title:
+          result.rule.status === "paused"
+            ? "已暂停"
+            : "已恢复",
+        icon: "success",
+      });
+    } catch (error) {
+      this.setData({
+        errorMessage: error.message || "状态修改失败，请稍后重试",
       });
     } finally {
       this.setData({

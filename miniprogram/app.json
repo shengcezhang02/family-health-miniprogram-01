@@ -9,7 +9,13 @@
     "pages/record-editor/record-editor",
     "pages/record-detail/record-detail",
     "pages/deleted-records/deleted-records",
-    "pages/templates/templates"
+    "pages/templates/templates",
+    "pages/family-management/family-management",
+    "pages/family-member/family-member",
+    "pages/dashboard-cards/dashboard-cards",
+    "pages/dashboard-card-editor/dashboard-card-editor",
+    "pages/analysis-detail/analysis-detail",
+    "pages/analysis-data/analysis-data"
   ],
   "tabBar": {
     "custom": true,

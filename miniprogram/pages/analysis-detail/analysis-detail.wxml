@@ -1,0 +1,128 @@
+<view class="analysis-shell">
+  <view class="analysis-header">
+    <view class="analysis-header__eyebrow">INSIGHTS · {{familyName}}</view>
+    <view class="analysis-header__title">{{title}}</view>
+    <view class="analysis-header__description">仅分析系统预设健康项目，不包含自定义模板。</view>
+  </view>
+
+  <view wx:if="{{cacheNotice || status === 'loading'}}" class="sync-indicator">
+    {{cacheNotice || "正在同步分析数据…"}}
+  </view>
+
+  <view wx:if="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <block wx:elif="{{status === 'ready'}}">
+    <view class="filter-bar">
+      <picker range="{{memberOptions}}" range-key="label" value="{{memberIndex}}" bindchange="onMemberChange">
+        <view class="filter-chip">{{memberOptions[memberIndex].label}}⌄</view>
+      </picker>
+      <picker range="{{timeRangeOptions}}" range-key="label" value="{{timeRangeIndex}}" bindchange="onTimeRangeChange">
+        <view class="filter-chip">{{timeRangeOptions[timeRangeIndex].label}}⌄</view>
+      </picker>
+      <picker wx:if="{{type === 'blood_glucose'}}" range="{{sceneOptions}}" range-key="label" value="{{sceneIndex}}" bindchange="onSceneChange">
+        <view class="filter-chip">{{sceneOptions[sceneIndex].label}}⌄</view>
+      </picker>
+    </view>
+
+    <view wx:if="{{type !== 'medication' && view.count === 0}}" class="empty-card">
+      当前筛选范围没有可分析的数据。
+    </view>
+
+    <block wx:if="{{type !== 'medication' && view.count > 0}}">
+      <view class="metric-grid">
+        <view wx:for="{{view.metricsList}}" wx:key="label" class="metric-card">
+          <view class="metric-card__label">{{item.label}}平均值</view>
+          <view class="metric-card__value">{{item.average}}<text>{{item.unit}}</text></view>
+          <view class="metric-card__range">最低 {{item.minimum}} · 最高 {{item.maximum}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{view.comparison}}" class="comparison-card">
+        <view class="comparison-card__label">{{view.comparison.label}}</view>
+        <view class="comparison-card__value">{{view.comparison.change > 0 ? '+' : ''}}{{view.comparison.change}} mmol/L</view>
+        <view class="comparison-card__detail">本期 {{view.comparison.currentAverage}} · 上期 {{view.comparison.previousAverage}}</view>
+      </view>
+
+      <view wx:if="{{view.sceneGroups.length}}" class="section-card">
+        <view class="section-title">按测量场景</view>
+        <view wx:for="{{view.sceneGroups}}" wx:key="key" class="scene-row">
+          <view><text class="scene-row__name">{{item.label}}</text><text class="scene-row__count">{{item.count}} 条</text></view>
+          <view class="scene-row__value">平均 {{item.average}} · {{item.reference}}</view>
+        </view>
+      </view>
+
+      <view wx:for="{{view.series}}" wx:key="key" class="section-card trend-series {{item.colorClass}}">
+        <view class="trend-header"><view class="section-title">{{item.label}}趋势</view><view class="trend-latest">{{item.latestValue}}</view></view>
+        <view class="trend-chart">
+          <view class="trend-y-axis">
+            <view wx:for="{{item.yAxis}}" wx:key="position" wx:for-item="tick" class="trend-y-tick" style="bottom: {{tick.position}}%;">{{tick.value}}</view>
+          </view>
+          <view class="trend-plot">
+            <view wx:for="{{item.references}}" wx:key="label" wx:for-item="reference" class="trend-reference" style="bottom: {{reference.position}}%;">
+              <view class="trend-reference__line"></view>
+              <view class="trend-reference__label">{{reference.label}}</view>
+            </view>
+            <view wx:for="{{item.points}}" wx:key="recordId" wx:for-item="point" class="trend-point-slot" data-record-id="{{point.recordId}}" bindtap="onOpenRecord">
+              <view wx:if="{{point.linePolygon}}" class="trend-line" style="-webkit-clip-path: polygon({{point.linePolygon}}); clip-path: polygon({{point.linePolygon}});"></view>
+              <view class="trend-point" style="bottom: {{point.position}}%;"></view>
+              <view class="trend-point__label" style="bottom: {{point.position}}%;">{{point.valueLabel}}</view>
+            </view>
+          </view>
+        </view>
+        <view class="trend-range"><text>{{item.firstTime}}</text><text>时间</text><text>{{item.lastTime}}</text></view>
+        <view class="trend-reference-summary">参考：{{item.referenceSummary}}</view>
+      </view>
+
+      <view class="reference-card">
+        <view class="reference-card__label">{{view.reference.label}}</view>
+        <view class="reference-card__value">{{view.reference.value}}</view>
+        <view class="reference-card__note">{{view.reference.note}}</view>
+      </view>
+    </block>
+
+    <block wx:if="{{type === 'medication'}}">
+      <view class="completion-card">
+        <view class="completion-card__rate">{{view.summary.rate}}%</view>
+        <view class="completion-card__body">
+          <view>完成 {{view.summary.completed}} / 计划 {{view.summary.planned}}</view>
+          <view class="progress"><view class="progress__value" style="width: {{view.summary.rate}}%;"></view></view>
+        </view>
+      </view>
+
+      <view class="section-card">
+        <view class="section-title">未完成提醒</view>
+        <view wx:if="{{view.incompleteReminders.length === 0}}" class="section-empty">当前范围没有未完成提醒</view>
+        <block wx:else>
+          <view wx:for="{{view.incompleteReminders}}" wx:key="id" class="data-row" data-reminder-id="{{item.id}}" bindtap="onOpenReminder">
+            <view><view class="data-row__value">{{item.valueLabel}}</view><view class="data-row__member">{{item.subject.displayName}}</view></view>
+            <view class="data-row__time">{{item.displayTime}}</view>
+          </view>
+        </block>
+      </view>
+
+      <view class="section-card">
+        <view class="section-title">实际用药记录</view>
+        <view wx:if="{{view.history.length === 0}}" class="section-empty">当前范围没有实际用药记录</view>
+        <block wx:else>
+          <view wx:for="{{view.history}}" wx:key="id" class="data-row" data-record-id="{{item.id}}" bindtap="onOpenRecord">
+            <view><view class="data-row__value">{{item.valueLabel}}</view><view class="data-row__member">{{item.subject.displayName}}</view></view>
+            <view class="data-row__time">{{item.displayTime}}</view>
+          </view>
+        </block>
+      </view>
+
+      <view class="medical-notice">完成率只反映已生成并已到时间的提醒，不代表治疗效果，也不构成医疗建议。</view>
+    </block>
+
+    <view class="action-bar">
+      <button class="secondary-button" bindtap="onOpenData">原始数据与 Excel</button>
+      <button class="primary-button" loading="{{savingImage}}" bindtap="onSaveImage">保存分析长图</button>
+    </view>
+  </block>
+
+  <canvas class="share-canvas" canvas-id="analysis-share-canvas" width="{{canvasWidth}}" height="{{canvasHeight}}"></canvas>
+</view>

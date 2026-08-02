@@ -2,9 +2,39 @@ function createDailyHealthPageLoader({
   bootstrapFamily,
   resolveCurrentFamily,
   getDailyHealth,
+  getCachedDailyHealth = () => undefined,
+  peekCurrentFamilyId = () => "",
+  getCachedFamily = () => undefined,
 }) {
+  function toPageResult(family, dailyHealth) {
+    return {
+      family,
+      members: dailyHealth.members || [],
+      records: dailyHealth.records || [],
+      reminders: dailyHealth.reminders || [],
+      recurringRules: dailyHealth.recurringRules || [],
+    };
+  }
+
   return {
-    async load(date) {
+    getStartupSnapshot(date) {
+      const familyId = peekCurrentFamilyId();
+      const family = familyId
+        ? getCachedFamily(familyId)
+        : undefined;
+      const dailyHealth = family
+        ? getCachedDailyHealth({
+            familyId,
+            date,
+          })
+        : undefined;
+
+      return family && dailyHealth
+        ? toPageResult(family, dailyHealth)
+        : undefined;
+    },
+
+    async load(date, { onCached } = {}) {
       const bootstrapResult = await bootstrapFamily();
       const family = resolveCurrentFamily(
         bootstrapResult.families || [],
@@ -16,16 +46,29 @@ function createDailyHealthPageLoader({
         throw error;
       }
 
-      const dailyHealth = await getDailyHealth({
+      const request = {
         familyId: family.id,
         date,
-      });
-
-      return {
-        family,
-        records: dailyHealth.records || [],
-        reminders: dailyHealth.reminders || [],
       };
+      const cachedDailyHealth = getCachedDailyHealth(request);
+
+      if (cachedDailyHealth && onCached) {
+        onCached(toPageResult(family, cachedDailyHealth));
+      }
+
+      const dailyHealth = await getDailyHealth(request);
+      return toPageResult(family, dailyHealth);
+    },
+
+    async prefetch(familyId, dates) {
+      await Promise.all(
+        (dates || []).map((date) =>
+          getDailyHealth({
+            familyId,
+            date,
+          }).catch(() => undefined),
+        ),
+      );
     },
   };
 }

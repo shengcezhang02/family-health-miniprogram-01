@@ -3,6 +3,7 @@ function createCloudQueryStore(db) {
   const memberships = db.collection("family_memberships");
   const records = db.collection("health_records");
   const reminders = db.collection("one_time_reminders");
+  const recurringRules = db.collection("recurring_rules");
 
   async function findOne(collection, query) {
     const result = await collection.where(query).limit(1).get();
@@ -36,6 +37,39 @@ function createCloudQueryStore(db) {
       return result.data
         .filter((record) => record.deletedAt === undefined)
         .slice(0, limit);
+    },
+
+    async listDashboardRecords(familyId) {
+      const result = await records
+        .where({
+          familyId,
+        })
+        .orderBy("occurredAt", "desc")
+        .limit(100)
+        .get();
+
+      return result.data.filter(
+        (record) => record.deletedAt === undefined,
+      );
+    },
+
+    async listDashboardReminders(familyId) {
+      const result = await reminders
+        .where({
+          familyId,
+        })
+        .limit(100)
+        .get();
+
+      return result.data
+        .filter(
+          (reminder) => reminder.deletedAt === undefined,
+        )
+        .sort(
+          (left, right) =>
+            new Date(right.plannedAt).getTime() -
+            new Date(left.plannedAt).getTime(),
+        );
     },
 
     async listDeletedRecords(familyId, limit) {
@@ -102,6 +136,27 @@ function createCloudQueryStore(db) {
             new Date(left.plannedAt).getTime() -
             new Date(right.plannedAt).getTime(),
         );
+    },
+
+    async listActiveMemberships(familyId) {
+      const result = await memberships
+        .where({
+          familyId,
+          status: "active",
+        })
+        .limit(100)
+        .get();
+      return result.data;
+    },
+
+    async listRecurringRules(familyId) {
+      const result = await recurringRules
+        .where({
+          familyId,
+        })
+        .limit(100)
+        .get();
+      return result.data;
     },
 
     async getUsersByIds(userIds) {

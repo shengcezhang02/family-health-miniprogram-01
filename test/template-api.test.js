@@ -66,6 +66,35 @@ test("有效家庭成员可以读取四个系统模板", async () => {
   ]);
 });
 
+test("系统血糖模板提供可用于预设分析的测量场景", async () => {
+  const api = createTemplateApiFor();
+
+  const result = await api.handle({
+    action: "listTemplates",
+    data: {
+      familyId: "family-1",
+    },
+  });
+  const bloodGlucose = result.data.templates.find(
+    (template) => template.id === "sys_blood_glucose",
+  );
+
+  assert.deepEqual(bloodGlucose.fields[1], {
+    key: "measurementScene",
+    label: "测量场景",
+    type: "single_choice",
+    required: false,
+    sortOrder: 20,
+    options: [
+      { key: "fasting", label: "空腹", sortOrder: 10 },
+      { key: "before_meal", label: "餐前", sortOrder: 20 },
+      { key: "after_meal_2h", label: "餐后 2 小时", sortOrder: 30 },
+      { key: "bedtime", label: "睡前", sortOrder: 40 },
+      { key: "random", label: "随机", sortOrder: 50 },
+    ],
+  });
+});
+
 test("有效家庭成员可以创建家庭自定义模板", async () => {
   const api = createTemplateApiFor({
     createId(kind) {

@@ -1,0 +1,20 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "family_dedup_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "dedupKey",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true
+      }
+    }
+  ]
+}

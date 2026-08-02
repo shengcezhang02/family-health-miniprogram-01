@@ -317,6 +317,259 @@ function createFamilyApi({
         },
       };
     },
+
+    async promoteMemberToAdmin(data) {
+      if (!data.familyId || !data.targetUserId) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请选择要提升的家庭成员",
+        );
+      }
+
+      const user = await getOrCreateCaller();
+      const result = await familyStore.promoteMemberToAdmin({
+        familyId: data.familyId,
+        callerUserId: user._id,
+        targetUserId: data.targetUserId,
+        timestamp: now(),
+      });
+
+      if (result.outcome === "admin-required") {
+        throw new ApiError(
+          "ADMIN_REQUIRED",
+          "只有家庭管理员可以提升成员",
+        );
+      }
+
+      if (result.outcome !== "updated") {
+        throw new ApiError(
+          "MEMBER_NOT_FOUND",
+          "该成员已不在当前家庭",
+        );
+      }
+
+      return {
+        member: {
+          id: result.membership.userId,
+          role: result.membership.role,
+        },
+      };
+    },
+
+    async demoteSelfFromAdmin(data) {
+      if (!data.familyId) {
+        throw new ApiError("INVALID_ARGUMENT", "请选择家庭");
+      }
+
+      const user = await getOrCreateCaller();
+      const result = await familyStore.demoteSelfFromAdmin({
+        familyId: data.familyId,
+        userId: user._id,
+        timestamp: now(),
+      });
+
+      if (result.outcome === "last-admin") {
+        throw new ApiError(
+          "LAST_ADMIN_CANNOT_DEMOTE",
+          "请先提升另一名家庭成员为管理员",
+        );
+      }
+
+      if (result.outcome !== "updated") {
+        throw new ApiError(
+          "ADMIN_REQUIRED",
+          "只有家庭管理员可以降级自己",
+        );
+      }
+
+      return {
+        member: {
+          id: result.membership.userId,
+          role: result.membership.role,
+        },
+      };
+    },
+
+    async removeMember(data) {
+      if (!data.familyId || !data.targetUserId) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请选择要移除的家庭成员",
+        );
+      }
+
+      const user = await getOrCreateCaller();
+
+      if (user._id === data.targetUserId) {
+        throw new ApiError(
+          "USE_LEAVE_FAMILY",
+          "请使用退出家庭来结束自己的成员关系",
+        );
+      }
+
+      const result = await familyStore.removeMember({
+        familyId: data.familyId,
+        callerUserId: user._id,
+        targetUserId: data.targetUserId,
+        timestamp: now(),
+      });
+
+      if (result.outcome === "admin-required") {
+        throw new ApiError(
+          "ADMIN_REQUIRED",
+          "只有家庭管理员可以移除成员",
+        );
+      }
+
+      if (result.outcome === "target-admin") {
+        throw new ApiError(
+          "CANNOT_REMOVE_ADMIN",
+          "不能移除另一名管理员，请对方先主动降级",
+        );
+      }
+
+      if (result.outcome !== "updated") {
+        throw new ApiError(
+          "MEMBER_NOT_FOUND",
+          "该成员已不在当前家庭",
+        );
+      }
+
+      return {
+        member: {
+          id: result.membership.userId,
+          status: result.membership.status,
+        },
+      };
+    },
+
+    async leaveFamily(data) {
+      if (!data.familyId) {
+        throw new ApiError("INVALID_ARGUMENT", "请选择要退出的家庭");
+      }
+
+      const user = await getOrCreateCaller();
+      const result = await familyStore.leaveFamily({
+        familyId: data.familyId,
+        userId: user._id,
+        timestamp: now(),
+      });
+
+      if (result.outcome === "last-admin") {
+        throw new ApiError(
+          "LAST_ADMIN_MUST_TRANSFER",
+          "你是唯一管理员，请先选择一名成员接任",
+        );
+      }
+
+      if (result.outcome !== "updated") {
+        throw new ApiError(
+          "MEMBER_NOT_FOUND",
+          "你已不在这个家庭中",
+        );
+      }
+
+      return {
+        familyId: data.familyId,
+        status: result.membership.status,
+      };
+    },
+
+    async transferAdminAndLeave(data) {
+      if (
+        !data.familyId ||
+        !data.successorUserId
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请选择接任管理员的家庭成员",
+        );
+      }
+
+      const user = await getOrCreateCaller();
+
+      if (user._id === data.successorUserId) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "接任者必须是另一名有效家庭成员",
+        );
+      }
+
+      const result = await familyStore.transferAdminAndLeave({
+        familyId: data.familyId,
+        userId: user._id,
+        successorUserId: data.successorUserId,
+        timestamp: now(),
+      });
+
+      if (result.outcome === "admin-required") {
+        throw new ApiError(
+          "ADMIN_REQUIRED",
+          "只有家庭管理员需要转让后退出",
+        );
+      }
+
+      if (result.outcome !== "updated") {
+        throw new ApiError(
+          "SUCCESSOR_NOT_FOUND",
+          "接任者已不在当前家庭，请重新选择",
+        );
+      }
+
+      return {
+        familyId: data.familyId,
+        successor: {
+          id: result.successor.userId,
+          role: result.successor.role,
+        },
+        status: result.membership.status,
+      };
+    },
+
+    async dissolveFamily(data) {
+      if (
+        !data.familyId ||
+        typeof data.confirmationName !== "string"
+      ) {
+        throw new ApiError(
+          "INVALID_ARGUMENT",
+          "请输入家庭名称以确认解散",
+        );
+      }
+
+      const user = await getOrCreateCaller();
+      const result = await familyStore.dissolveFamily({
+        familyId: data.familyId,
+        userId: user._id,
+        confirmationName: data.confirmationName.trim(),
+      });
+
+      if (result.outcome === "admin-required") {
+        throw new ApiError(
+          "ADMIN_REQUIRED",
+          "只有家庭管理员可以解散家庭",
+        );
+      }
+
+      if (result.outcome === "confirmation-mismatch") {
+        throw new ApiError(
+          "CONFIRMATION_MISMATCH",
+          "输入的家庭名称不一致",
+        );
+      }
+
+      if (result.outcome !== "dissolved") {
+        throw new ApiError(
+          "FAMILY_NOT_FOUND",
+          "家庭不存在或已经解散",
+        );
+      }
+
+      return {
+        familyId: data.familyId,
+        dissolved: true,
+      };
+    },
   };
 
   return {

@@ -9,6 +9,104 @@ function createCloudFamilyStore(db) {
     return data;
   }
 
+  async function listActiveMembershipsInTransaction(
+    transaction,
+    familyId,
+  ) {
+    const result = await transaction
+      .collection("family_memberships")
+      .where({
+        familyId,
+        status: "active",
+      })
+      .get();
+    return result.data;
+  }
+
+  async function incrementFamilyRevision(
+    transaction,
+    familyId,
+    timestamp,
+  ) {
+    const transactionFamilies = transaction.collection("families");
+    const result = await transactionFamilies.doc(familyId).get();
+    const family = result.data ?? null;
+
+    if (!family) {
+      return null;
+    }
+
+    const updated = {
+      ...family,
+      revision: family.revision + 1,
+      updatedAt: timestamp,
+    };
+    await transactionFamilies.doc(familyId).set({
+      data: withoutDocumentId(updated),
+    });
+    return updated;
+  }
+
+  async function cleanupSubjectScheduleInTransaction({
+    transaction,
+    familyId,
+    subjectUserId,
+    actorUserId,
+    timestamp,
+  }) {
+    const transactionRules =
+      transaction.collection("recurring_rules");
+    const ruleResult = await transactionRules
+      .where({
+        familyId,
+        subjectUserId,
+        status: "active",
+      })
+      .get();
+
+    for (const rule of ruleResult.data) {
+      if (rule.deletedAt) {
+        continue;
+      }
+
+      const pausedRule = {
+        ...rule,
+        status: "paused",
+        pausedAt: timestamp,
+        pausedByUserId: actorUserId,
+        pauseReason: "subject_inactive",
+        updatedByUserId: actorUserId,
+        updatedAt: timestamp,
+        revision: rule.revision + 1,
+      };
+      await transactionRules.doc(rule._id).set({
+        data: withoutDocumentId(pausedRule),
+      });
+      const transactionReminders = transaction.collection(
+        "one_time_reminders",
+      );
+      const reminderResult = await transactionReminders
+        .where({
+          familyId,
+          sourceRecurringRuleId: rule._id,
+          status: "pending",
+        })
+        .get();
+
+      for (const reminder of reminderResult.data) {
+        if (
+          !reminder.deletedAt &&
+          new Date(reminder.plannedAt).getTime() >
+            timestamp.getTime()
+        ) {
+          await transactionReminders
+            .doc(reminder._id)
+            .remove();
+        }
+      }
+    }
+  }
+
   async function getUserByOpenId(openId) {
     const result = await users.where({ wechatOpenId: openId }).limit(1).get();
     return result.data[0] ?? null;
@@ -277,6 +375,424 @@ function createCloudFamilyStore(db) {
         return {
           outcome: "revoked",
           invite: revokedInvite,
+        };
+      });
+    },
+
+    async promoteMemberToAdmin({
+      familyId,
+      callerUserId,
+      targetUserId,
+      timestamp,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const callerMembership = activeMemberships.find(
+          (candidate) => candidate.userId === callerUserId,
+        );
+
+        if (callerMembership?.role !== "admin") {
+          return {
+            outcome: "admin-required",
+          };
+        }
+
+        const targetMembership = activeMemberships.find(
+          (candidate) => candidate.userId === targetUserId,
+        );
+
+        if (!targetMembership) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (targetMembership.role === "admin") {
+          return {
+            outcome: "updated",
+            membership: targetMembership,
+          };
+        }
+
+        const updated = {
+          ...targetMembership,
+          role: "admin",
+          revision: targetMembership.revision + 1,
+          updatedAt: timestamp,
+        };
+        await transaction
+          .collection("family_memberships")
+          .doc(updated._id)
+          .set({
+            data: withoutDocumentId(updated),
+          });
+        await incrementFamilyRevision(
+          transaction,
+          familyId,
+          timestamp,
+        );
+
+        return {
+          outcome: "updated",
+          membership: updated,
+        };
+      });
+    },
+
+    async demoteSelfFromAdmin({ familyId, userId, timestamp }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const membership = activeMemberships.find(
+          (candidate) => candidate.userId === userId,
+        );
+
+        if (membership?.role !== "admin") {
+          return {
+            outcome: "admin-required",
+          };
+        }
+
+        const otherAdminExists = activeMemberships.some(
+          (candidate) =>
+            candidate.userId !== userId &&
+            candidate.role === "admin",
+        );
+
+        if (!otherAdminExists) {
+          return {
+            outcome: "last-admin",
+          };
+        }
+
+        const updated = {
+          ...membership,
+          role: "member",
+          revision: membership.revision + 1,
+          updatedAt: timestamp,
+        };
+        await transaction
+          .collection("family_memberships")
+          .doc(updated._id)
+          .set({
+            data: withoutDocumentId(updated),
+          });
+        await incrementFamilyRevision(
+          transaction,
+          familyId,
+          timestamp,
+        );
+
+        return {
+          outcome: "updated",
+          membership: updated,
+        };
+      });
+    },
+
+    async leaveFamily({ familyId, userId, timestamp }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const membership = activeMemberships.find(
+          (candidate) => candidate.userId === userId,
+        );
+
+        if (!membership) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (
+          membership.role === "admin" &&
+          !activeMemberships.some(
+            (candidate) =>
+              candidate.userId !== userId &&
+              candidate.role === "admin",
+          )
+        ) {
+          return {
+            outcome: "last-admin",
+          };
+        }
+
+        const updated = {
+          ...membership,
+          status: "inactive",
+          endedAt: timestamp,
+          endedByUserId: userId,
+          endReason: "left",
+          revision: membership.revision + 1,
+          updatedAt: timestamp,
+        };
+        await transaction
+          .collection("family_memberships")
+          .doc(updated._id)
+          .set({
+            data: withoutDocumentId(updated),
+          });
+        await cleanupSubjectScheduleInTransaction({
+          transaction,
+          familyId,
+          subjectUserId: userId,
+          actorUserId: userId,
+          timestamp,
+        });
+        await incrementFamilyRevision(
+          transaction,
+          familyId,
+          timestamp,
+        );
+
+        return {
+          outcome: "updated",
+          membership: updated,
+        };
+      });
+    },
+
+    async removeMember({
+      familyId,
+      callerUserId,
+      targetUserId,
+      timestamp,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const callerMembership = activeMemberships.find(
+          (candidate) => candidate.userId === callerUserId,
+        );
+
+        if (callerMembership?.role !== "admin") {
+          return {
+            outcome: "admin-required",
+          };
+        }
+
+        const targetMembership = activeMemberships.find(
+          (candidate) => candidate.userId === targetUserId,
+        );
+
+        if (!targetMembership) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (targetMembership.role === "admin") {
+          return {
+            outcome: "target-admin",
+          };
+        }
+
+        const updated = {
+          ...targetMembership,
+          status: "inactive",
+          endedAt: timestamp,
+          endedByUserId: callerUserId,
+          endReason: "removed",
+          revision: targetMembership.revision + 1,
+          updatedAt: timestamp,
+        };
+        await transaction
+          .collection("family_memberships")
+          .doc(updated._id)
+          .set({
+            data: withoutDocumentId(updated),
+          });
+        await cleanupSubjectScheduleInTransaction({
+          transaction,
+          familyId,
+          subjectUserId: targetUserId,
+          actorUserId: callerUserId,
+          timestamp,
+        });
+        await incrementFamilyRevision(
+          transaction,
+          familyId,
+          timestamp,
+        );
+
+        return {
+          outcome: "updated",
+          membership: updated,
+        };
+      });
+    },
+
+    async transferAdminAndLeave({
+      familyId,
+      userId,
+      successorUserId,
+      timestamp,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const membership = activeMemberships.find(
+          (candidate) => candidate.userId === userId,
+        );
+
+        if (membership?.role !== "admin") {
+          return {
+            outcome: "admin-required",
+          };
+        }
+
+        const successor = activeMemberships.find(
+          (candidate) =>
+            candidate.userId === successorUserId &&
+            candidate.userId !== userId,
+        );
+
+        if (!successor) {
+          return {
+            outcome: "successor-not-found",
+          };
+        }
+
+        const updatedSuccessor =
+          successor.role === "admin"
+            ? successor
+            : {
+                ...successor,
+                role: "admin",
+                revision: successor.revision + 1,
+                updatedAt: timestamp,
+              };
+        const updatedMembership = {
+          ...membership,
+          status: "inactive",
+          endedAt: timestamp,
+          endedByUserId: userId,
+          endReason: "left_after_transfer",
+          revision: membership.revision + 1,
+          updatedAt: timestamp,
+        };
+        const transactionMemberships =
+          transaction.collection("family_memberships");
+
+        if (successor.role !== "admin") {
+          await transactionMemberships
+            .doc(updatedSuccessor._id)
+            .set({
+              data: withoutDocumentId(updatedSuccessor),
+            });
+        }
+
+        await transactionMemberships
+          .doc(updatedMembership._id)
+          .set({
+            data: withoutDocumentId(updatedMembership),
+          });
+        await cleanupSubjectScheduleInTransaction({
+          transaction,
+          familyId,
+          subjectUserId: userId,
+          actorUserId: userId,
+          timestamp,
+        });
+        await incrementFamilyRevision(
+          transaction,
+          familyId,
+          timestamp,
+        );
+
+        return {
+          outcome: "updated",
+          membership: updatedMembership,
+          successor: updatedSuccessor,
+        };
+      });
+    },
+
+    async dissolveFamily({
+      familyId,
+      userId,
+      confirmationName,
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const activeMemberships =
+          await listActiveMembershipsInTransaction(
+            transaction,
+            familyId,
+          );
+        const membership = activeMemberships.find(
+          (candidate) => candidate.userId === userId,
+        );
+
+        if (membership?.role !== "admin") {
+          return {
+            outcome: "admin-required",
+          };
+        }
+
+        const transactionFamilies =
+          transaction.collection("families");
+        const familyResult = await transactionFamilies
+          .doc(familyId)
+          .get();
+        const family = familyResult.data ?? null;
+
+        if (!family) {
+          return {
+            outcome: "not-found",
+          };
+        }
+
+        if (family.name !== confirmationName) {
+          return {
+            outcome: "confirmation-mismatch",
+          };
+        }
+
+        const familyScopedCollections = [
+          "family_memberships",
+          "family_invites",
+          "health_templates",
+          "health_records",
+          "one_time_reminders",
+          "recurring_rules",
+          "care_shares",
+          "operation_tasks",
+        ];
+
+        for (const collectionName of familyScopedCollections) {
+          const collection =
+            transaction.collection(collectionName);
+          const result = await collection
+            .where({
+              familyId,
+            })
+            .get();
+
+          for (const document of result.data) {
+            await collection.doc(document._id).remove();
+          }
+        }
+
+        await transactionFamilies.doc(familyId).remove();
+
+        return {
+          outcome: "dissolved",
         };
       });
     },

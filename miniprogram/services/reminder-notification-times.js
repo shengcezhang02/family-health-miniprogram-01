@@ -37,7 +37,21 @@ function buildNotificationTimeValues(rows) {
     .map((timestamp) => new Date(timestamp).toISOString());
 }
 
+function formatNotificationTimeSummary(values) {
+  return (values || [])
+    .map((value) => new Date(value))
+    .filter((value) => !Number.isNaN(value.getTime()))
+    .map(
+      (value) =>
+        `${value.getMonth() + 1}月${value.getDate()}日 ${pad(
+          value.getHours(),
+        )}:${pad(value.getMinutes())}`,
+    )
+    .join("、");
+}
+
 module.exports = {
   buildNotificationTimeValues,
+  formatNotificationTimeSummary,
   toNotificationTimeRows,
 };

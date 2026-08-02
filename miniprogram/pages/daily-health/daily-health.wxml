@@ -24,10 +24,12 @@
     >
       <view id="daily-date-picker" class="date-navigator__selected">
         <view class="date-navigator__copy">
-          <view class="date-navigator__title">{{dateTitle}}</view>
+          <view class="date-navigator__title-row">
+            <view class="date-navigator__title">{{dateTitle}}</view>
+            <view class="date-navigator__chevron">⌄</view>
+          </view>
           <view class="date-navigator__subtitle">{{dateSubtitle}}</view>
         </view>
-        <view class="date-navigator__calendar">日</view>
       </view>
     </picker>
     <button
@@ -47,12 +49,14 @@
     回到今天
   </button>
 
-  <view wx:if="{{status === 'loading'}}" class="state-card">
-    <view class="state-card__title">正在加载当天健康事项</view>
-    <view class="state-card__description">请稍候</view>
+  <view
+    wx:if="{{cacheNotice || status === 'loading'}}"
+    class="sync-indicator"
+  >
+    {{cacheNotice || "正在同步当天数据…"}}
   </view>
 
-  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+  <view wx:if="{{status === 'error'}}" class="state-card state-card--error">
     <view class="state-card__title">暂时无法打开</view>
     <view class="state-card__description">{{errorMessage}}</view>
     <button
@@ -68,97 +72,330 @@
   </view>
 
   <view wx:else>
-    <view class="quick-actions">
+    <view class="daily-controls">
+      <view
+        id="daily-controls-toggle"
+        class="daily-controls__toggle"
+        bindtap="onToggleControls"
+      >
+        <view class="daily-controls__copy">
+          <view class="daily-controls__title">操作与筛选</view>
+          <view class="daily-controls__summary">{{controlsSummary}}</view>
+        </view>
+        <view class="daily-controls__state">
+          {{controlsExpanded ? "收起" : "展开"}}
+          <text class="daily-controls__chevron {{controlsExpanded ? 'daily-controls__chevron--open' : ''}}">⌄</text>
+        </view>
+      </view>
+
+      <view wx:if="{{controlsExpanded}}" class="daily-controls__content">
+        <view class="quick-actions">
       <button
-        id="daily-add-reminder-button"
-        class="primary-button"
-        bindtap="onAddReminder"
+      id="daily-add-reminder-button"
+      class="primary-button"
+      disabled="{{interactionsLocked}}"
+      bindtap="onAddReminder"
       >
         ＋ 新建提醒
       </button>
       <button
-        id="daily-add-record-button"
-        class="secondary-button"
-        bindtap="onAddRecord"
+      id="daily-add-record-button"
+      class="secondary-button"
+      disabled="{{interactionsLocked}}"
+      bindtap="onAddRecord"
       >
         添加记录
       </button>
+        </view>
+
+        <button
+          wx:if="{{showDeveloperTools}}"
+          class="developer-button"
+          loading="{{runningMaterializer}}"
+          disabled="{{runningMaterializer || interactionsLocked}}"
+          bindtap="onRunMaterializer"
+        >
+          开发调试：立即生成未来提醒
+        </button>
+
+        <view class="filter-panel">
+          <view class="filter-row">
+        <picker
+          class="filter-picker"
+          range="{{memberOptions}}"
+          range-key="label"
+          value="{{selectedMemberFilterIndex}}"
+          bindchange="onMemberFilterChange"
+        >
+          <view class="filter-value">
+            {{memberOptions[selectedMemberFilterIndex].label}}⌄
+          </view>
+        </picker>
+        <picker
+          class="filter-picker"
+          range="{{templateOptions}}"
+          range-key="label"
+          value="{{selectedTemplateFilterIndex}}"
+          bindchange="onTemplateFilterChange"
+        >
+          <view class="filter-value">
+            {{templateOptions[selectedTemplateFilterIndex].label}}⌄
+          </view>
+        </picker>
+        <picker
+          class="filter-picker"
+          range="{{itemTypeOptions}}"
+          range-key="label"
+          value="{{selectedItemTypeFilterIndex}}"
+          bindchange="onItemTypeFilterChange"
+        >
+          <view class="filter-value">
+            {{itemTypeOptions[selectedItemTypeFilterIndex].label}}⌄
+          </view>
+        </picker>
+          </view>
+          <view class="display-mode">
+        <button
+          class="display-mode__button {{displayMode === 'mixed' ? 'display-mode__button--selected' : ''}}"
+          data-mode="mixed"
+          bindtap="onDisplayModeChange"
+        >
+          混排
+        </button>
+        <button
+          class="display-mode__button {{displayMode === 'grouped' ? 'display-mode__button--selected' : ''}}"
+          data-mode="grouped"
+          bindtap="onDisplayModeChange"
+        >
+          分类
+        </button>
+          </view>
+        </view>
+      </view>
     </view>
 
-    <view class="section">
-      <view class="section__title">提醒</view>
-      <view wx:if="{{reminders.length === 0}}" class="empty-card">
-        这一天还没有提醒
+    <block wx:if="{{displayMode === 'mixed'}}">
+      <view class="section">
+        <view class="section__title">当天事项</view>
+        <view wx:if="{{!refreshing && timelineItems.length === 0}}" class="empty-card">
+          当前筛选下没有健康事项
+        </view>
+        <view
+          wx:for="{{timelineItems}}"
+          wx:key="id"
+          class="health-card {{item.kind === 'reminder' ? 'reminder-card' : ''}}"
+        >
+          <block wx:if="{{item.kind === 'reminder'}}">
+            <view
+              class="reminder-card__tap-area"
+              data-reminder-id="{{item.reminder.id}}"
+              data-linked-record-id="{{item.reminder.linkedRecordId}}"
+              bindtap="onOpenReminderCard"
+            >
+            <view class="health-card__top">
+              <view class="health-card__identity">
+                <view class="health-card__title">{{item.reminder.templateNameSnapshot}}</view>
+                <view class="health-card__subject">· {{item.reminder.displaySubjectName}}</view>
+              </view>
+              <view class="status-badge status-badge--{{item.reminder.status}}">
+                {{item.reminder.displayStatus}}
+              </view>
+            </view>
+            <view class="health-card__compact-row">
+              <view
+                wx:if="{{item.reminder.displayNotificationTimes}}"
+                class="health-card__notification"
+              >
+                通知 {{item.reminder.displayNotificationTimes}}
+              </view>
+              <view class="card-actions">
+                <button
+                  wx:if="{{item.reminder.canCheckIn}}"
+                  class="card-button card-button--primary"
+                  disabled="{{interactionsLocked}}"
+                  data-reminder-id="{{item.reminder.id}}"
+                  catchtap="onCheckInReminder"
+                >
+                  打卡
+                </button>
+              </view>
+            </view>
+            <view wx:if="{{item.reminder.remark}}" class="health-card__remark">
+              {{item.reminder.remark}}
+            </view>
+            <view
+              wx:for="{{item.linkedRecords}}"
+              wx:for-item="linkedRecord"
+              wx:key="id"
+              class="linked-record"
+              data-record-id="{{linkedRecord.id}}"
+              catchtap="onOpenRecord"
+            >
+              <view class="linked-record__main">
+                <view class="linked-record__label">打卡记录</view>
+                <view class="field-list">
+                  <view
+                    wx:for="{{linkedRecord.displayFields}}"
+                    wx:for-item="field"
+                    wx:key="key"
+                    class="field-value field-value--strong"
+                  >
+                    {{field.value}}
+                  </view>
+                </view>
+                <view class="linked-record__time">{{linkedRecord.displayOccurredAt}}</view>
+                <view class="linked-record__open">›</view>
+              </view>
+              <view wx:if="{{linkedRecord.remark}}" class="health-card__remark">
+                {{linkedRecord.remark}}
+              </view>
+            </view>
+            </view>
+          </block>
+          <block wx:else>
+            <view
+              data-record-id="{{item.record.id}}"
+              bindtap="onOpenRecord"
+            >
+              <view class="record-compact-row">
+                <view class="health-card__identity">
+                  <view class="health-card__title">{{item.record.templateNameSnapshot}}</view>
+                  <view class="health-card__subject">· {{item.record.displaySubjectName}}</view>
+                </view>
+                <view class="field-list field-list--record">
+                  <view
+                    wx:for="{{item.record.displayFields}}"
+                    wx:for-item="field"
+                    wx:key="key"
+                    class="field-value field-value--strong"
+                  >
+                    {{field.value}}
+                  </view>
+                </view>
+                <view class="health-card__time">{{item.record.displayOccurredAt}}</view>
+                <view class="record-compact-row__open">›</view>
+              </view>
+              <view wx:if="{{item.record.remark}}" class="health-card__remark">
+                {{item.record.remark}}
+              </view>
+            </view>
+          </block>
+        </view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="section">
+        <view class="section__title">提醒</view>
+        <view wx:if="{{!refreshing && reminders.length === 0}}" class="empty-card">
+          当前筛选下没有提醒
+        </view>
+        <view
+          wx:for="{{reminders}}"
+          wx:key="id"
+          class="health-card reminder-card"
+          data-reminder-id="{{item.id}}"
+          data-linked-record-id="{{item.linkedRecordId}}"
+          bindtap="onOpenReminderCard"
+        >
+          <view class="health-card__top">
+            <view class="health-card__identity">
+              <view class="health-card__title">{{item.templateNameSnapshot}}</view>
+              <view class="health-card__subject">· {{item.displaySubjectName}}</view>
+            </view>
+            <view class="status-badge status-badge--{{item.status}}">
+              {{item.displayStatus}}
+            </view>
+          </view>
+          <view class="health-card__compact-row">
+            <view
+              wx:if="{{item.displayNotificationTimes}}"
+              class="health-card__notification"
+            >
+              通知 {{item.displayNotificationTimes}}
+            </view>
+            <view class="card-actions">
+              <button
+                wx:if="{{item.canCheckIn}}"
+                id="check-in-reminder-{{item.id}}"
+                class="card-button card-button--primary"
+                disabled="{{interactionsLocked}}"
+                data-reminder-id="{{item.id}}"
+                catchtap="onCheckInReminder"
+              >
+                打卡
+              </button>
+            </view>
+          </view>
+          <view wx:if="{{item.remark}}" class="health-card__remark">
+            {{item.remark}}
+          </view>
+        </view>
+      </view>
+
+      <view class="section">
+        <view class="section__title">记录</view>
+        <view wx:if="{{!refreshing && records.length === 0}}" class="empty-card">
+          当前筛选下没有健康记录
+        </view>
+        <view
+          wx:for="{{records}}"
+          wx:key="id"
+          class="health-card"
+          data-record-id="{{item.id}}"
+          bindtap="onOpenRecord"
+        >
+          <view class="record-compact-row">
+            <view class="health-card__identity">
+              <view class="health-card__title">{{item.templateNameSnapshot}}</view>
+              <view class="health-card__subject">· {{item.displaySubjectName}}</view>
+            </view>
+            <view class="field-list field-list--record">
+              <view
+                wx:for="{{item.displayFields}}"
+                wx:for-item="field"
+                wx:key="key"
+                class="field-value field-value--strong"
+              >
+                {{field.value}}
+              </view>
+            </view>
+            <view class="health-card__time">{{item.displayOccurredAt}}</view>
+            <view class="record-compact-row__open">›</view>
+          </view>
+          <view wx:if="{{item.remark}}" class="health-card__remark">
+            {{item.remark}}
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <view class="section rule-section">
+      <view class="section__title">这一天适用的周期规则</view>
+      <view wx:if="{{!refreshing && recurringRules.length === 0}}" class="empty-card">
+        当前筛选下没有适用的周期规则
       </view>
       <view
-        wx:for="{{reminders}}"
+        wx:for="{{recurringRules}}"
         wx:key="id"
-        class="health-card reminder-card"
+        class="health-card rule-card"
+        data-rule-id="{{item.id}}"
+        bindtap="onOpenRule"
       >
         <view class="health-card__top">
           <view>
             <view class="health-card__title">{{item.templateNameSnapshot}}</view>
             <view class="health-card__subject">{{item.displaySubjectName}}</view>
           </view>
-          <view class="status-badge status-badge--{{item.status}}">
+          <view class="rule-status rule-status--{{item.status}}">
             {{item.displayStatus}}
           </view>
         </view>
-        <view class="health-card__time">计划 {{item.displayPlannedAt}}</view>
-        <view wx:if="{{item.remark}}" class="health-card__remark">
-          {{item.remark}}
+        <view class="rule-card__schedule">
+          {{item.displayRepeat}} · {{item.displayDailyTimes}}
         </view>
-        <view class="card-actions">
-          <button
-            wx:if="{{item.canCheckIn}}"
-            id="check-in-reminder-{{item.id}}"
-            class="card-button card-button--primary"
-            data-reminder-id="{{item.id}}"
-            bindtap="onCheckInReminder"
-          >
-            打卡
-          </button>
-          <button
-            wx:if="{{item.canCheckIn}}"
-            id="edit-reminder-{{item.id}}"
-            class="card-button"
-            data-reminder-id="{{item.id}}"
-            bindtap="onEditReminder"
-          >
-            修改
-          </button>
-        </view>
-      </view>
-    </view>
-
-    <view class="section">
-      <view class="section__title">记录</view>
-      <view wx:if="{{records.length === 0}}" class="empty-card">
-        这一天还没有健康记录
-      </view>
-      <view
-        wx:for="{{records}}"
-        wx:key="id"
-        class="health-card"
-        data-record-id="{{item.id}}"
-        bindtap="onOpenRecord"
-      >
-        <view class="health-card__top">
-          <view>
-            <view class="health-card__title">{{item.templateNameSnapshot}}</view>
-            <view class="health-card__subject">{{item.displaySubjectName}}</view>
-          </view>
-          <view class="health-card__time">{{item.displayOccurredAt}}</view>
-        </view>
-        <view class="field-list">
-          <view
-            wx:for="{{item.displayFields}}"
-            wx:for-item="field"
-            wx:key="key"
-            class="field-value"
-          >
-            {{field.label}}：{{field.value}}
-          </view>
+        <view class="rule-card__range">
+          {{item.startDate}} 至 {{item.endDate}}
         </view>
         <view wx:if="{{item.remark}}" class="health-card__remark">
           {{item.remark}}

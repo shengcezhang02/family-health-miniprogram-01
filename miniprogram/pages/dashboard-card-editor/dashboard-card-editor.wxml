@@ -1,0 +1,178 @@
+<view class="page-shell">
+  <view class="page-header">
+    <view class="page-header__eyebrow">CARD · {{familyName}}</view>
+    <view class="page-header__title">
+      {{mode === 'edit' ? '卡片详情与设置' : '添加卡片'}}
+    </view>
+    <view class="page-header__description">
+      五种预设卡片共用这一页；顶部切换会立即更新预览。
+    </view>
+  </view>
+
+  <scroll-view wx:if="{{status === 'ready'}}" class="type-tabs" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="type-tabs__inner">
+      <view
+        wx:for="{{typeOptions}}"
+        wx:key="value"
+        class="type-tab {{draft.type === item.value ? 'type-tab--active' : ''}}"
+        data-type="{{item.value}}"
+        bindtap="onTypeChange"
+      >{{item.label}}</view>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    正在加载卡片设置…
+  </view>
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+  </view>
+
+  <block wx:else>
+    <view class="form-section">
+      <view class="form-row">
+        <view class="form-label">卡片名称</view>
+        <input
+          class="text-input"
+          maxlength="20"
+          value="{{draft.title}}"
+          bindinput="onTitleInput"
+        />
+      </view>
+
+      <view class="form-row">
+        <view class="form-label">健康项目</view>
+        <picker
+          range="{{templateOptions}}"
+          range-key="name"
+          value="{{templateIndex}}"
+          bindchange="onTemplateChange"
+        >
+          <view class="picker-value">{{templateOptions[templateIndex].name}} <text>⌄</text></view>
+        </picker>
+      </view>
+
+      <view class="form-row">
+        <view class="form-label">成员</view>
+        <checkbox-group class="choice-grid" bindchange="onMembersChange">
+          <label wx:for="{{members}}" wx:key="id" class="choice-item">
+            <checkbox
+              value="{{item.id}}"
+              checked="{{item.checked}}"
+              color="#2e6f68"
+            />
+            <text>{{item.displayLabel}}</text>
+          </label>
+        </checkbox-group>
+      </view>
+
+      <view wx:if="{{draft.type !== 'recurring_rules'}}" class="form-row">
+        <view class="form-label">时间范围</view>
+        <picker
+          range="{{timeRangeOptions}}"
+          range-key="label"
+          value="{{timeRangeIndex}}"
+          bindchange="onTimeRangeChange"
+        >
+          <view class="picker-value">{{timeRangeOptions[timeRangeIndex].label}} <text>⌄</text></view>
+        </picker>
+      </view>
+
+      <view
+        wx:if="{{fieldOptions.length > 0 && (draft.type === 'trend' || draft.type === 'record_list' || draft.type === 'latest_data')}}"
+        class="form-row"
+      >
+        <view class="form-label">展示字段</view>
+        <checkbox-group class="choice-grid" bindchange="onFieldsChange">
+          <label wx:for="{{fieldOptions}}" wx:key="key" class="choice-item">
+            <checkbox
+              value="{{item.key}}"
+              checked="{{item.checked}}"
+              color="#2e6f68"
+            />
+            <text>{{item.label}}{{item.unit ? '（' + item.unit + '）' : ''}}</text>
+          </label>
+        </checkbox-group>
+      </view>
+    </view>
+
+    <view class="preview-section">
+      <view class="section-heading">
+        <view class="section-heading__label">实时预览</view>
+        <view class="section-heading__meta">{{preview.filterLabel}}</view>
+      </view>
+
+      <view wx:if="{{preview.type === 'record_list'}}" class="preview-card">
+        <view wx:if="{{preview.items.length === 0}}" class="preview-empty">没有符合条件的记录</view>
+        <view wx:for="{{preview.items}}" wx:key="id" class="preview-row">
+          <view>
+            <view class="preview-row__title">{{item.templateNameSnapshot}} · {{item.subject.displayName}}</view>
+            <view class="preview-row__meta">{{item.displayValues}}</view>
+          </view>
+          <view class="preview-row__time">{{item.displayTime}}</view>
+        </view>
+      </view>
+
+      <view wx:elif="{{preview.type === 'latest_data'}}" class="preview-card">
+        <view wx:if="{{preview.items.length === 0}}" class="preview-empty">没有符合条件的最新数据</view>
+        <view wx:for="{{preview.items}}" wx:key="memberId" class="preview-latest">
+          <view class="preview-row__meta">{{item.memberLabel}} · {{item.displayTime}}</view>
+          <view wx:for="{{item.values}}" wx:key="key" wx:for-item="value" class="preview-latest__value">
+            <text>{{value.label}} {{value.displayValue}}</text>
+            <text>{{value.changeLabel}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:elif="{{preview.type === 'trend'}}" class="preview-card">
+        <view wx:if="{{preview.series.length === 0}}" class="preview-empty">没有可绘制的数值数据</view>
+        <view wx:for="{{preview.series}}" wx:key="key" class="preview-trend">
+          <view>{{item.label}}</view>
+          <view class="preview-trend__value">{{item.latestValue}}</view>
+          <view class="preview-row__meta">{{item.points.length}} 个数据点</view>
+        </view>
+      </view>
+
+      <view wx:elif="{{preview.type === 'reminder_completion'}}" class="preview-card">
+        <view class="preview-completion">
+          <view class="preview-completion__rate">{{preview.summary.rate}}%</view>
+          <view>已完成 {{preview.summary.completed}} / 应完成 {{preview.summary.expected}}</view>
+        </view>
+        <view wx:for="{{preview.items}}" wx:key="id" class="preview-row">
+          <view>{{item.templateNameSnapshot}} · {{item.subject.displayName}}</view>
+          <view class="preview-row__time">{{item.displayTime}}</view>
+        </view>
+      </view>
+
+      <view wx:else class="preview-card">
+        <view wx:if="{{preview.items.length === 0}}" class="preview-empty">没有符合条件的周期提醒</view>
+        <view wx:for="{{preview.items}}" wx:key="id" class="preview-row">
+          <view>
+            <view class="preview-row__title">{{item.templateNameSnapshot}} · {{item.memberLabel}}</view>
+            <view class="preview-row__meta">{{item.scheduleLabel}}</view>
+          </view>
+          <view class="preview-row__time">{{item.statusLabel}}</view>
+        </view>
+        <button class="inline-add-button" bindtap="onAddRecurringRule">+ 新建周期提醒</button>
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="form-error">{{errorMessage}}</view>
+
+    <view class="form-actions">
+      <button
+        class="save-button"
+        loading="{{saving}}"
+        disabled="{{saving}}"
+        bindtap="onSave"
+      >保存卡片</button>
+      <button
+        wx:if="{{mode === 'edit'}}"
+        class="delete-button"
+        disabled="{{saving}}"
+        bindtap="onDelete"
+      >删除卡片</button>
+    </view>
+  </block>
+</view>

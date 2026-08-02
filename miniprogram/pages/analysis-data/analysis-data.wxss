@@ -1,0 +1,24 @@
+.data-shell { min-height: 100vh; box-sizing: border-box; padding: 40rpx 34rpx calc(70rpx + env(safe-area-inset-bottom)); background: #f4f1eb; }
+.data-header__eyebrow { color: #c65b4f; font-size: 20rpx; font-weight: 700; letter-spacing: 2rpx; }
+.data-header__title { margin-top: 12rpx; color: #202825; font-size: 46rpx; font-weight: 750; }
+.data-header__description { margin-top: 10rpx; color: #68736f; font-size: 22rpx; line-height: 1.6; }
+.sync-indicator { position: fixed; top: 18rpx; right: 24rpx; z-index: 30; max-width: 430rpx; overflow: hidden; padding: 9rpx 14rpx; border: 1rpx solid #ead9ad; border-radius: 7rpx; color: #7b641d; font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; background: rgba(250, 245, 231, .96); }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 26rpx; }
+.filter-chip { padding: 13rpx 18rpx; border: 1rpx solid #d8d2c9; border-radius: 9rpx; color: #45534e; font-size: 21rpx; background: #fff; }
+.table-summary { display: flex; justify-content: space-between; margin-top: 24rpx; color: #74807b; font-size: 20rpx; }
+.data-list { margin-top: 12rpx; overflow: hidden; border: 1rpx solid #ded8cf; border-radius: 12rpx; background: #fff; }
+.data-row { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 18rpx; padding: 18rpx 22rpx; border-bottom: 1rpx solid #ece7e0; }
+.data-row:last-child { border-bottom: 0; }
+.data-row__main { min-width: 0; flex: 1; }
+.data-row__type { color: #283833; font-size: 23rpx; font-weight: 700; }
+.data-row__member { color: #71807a; font-size: 19rpx; }
+.data-row__detail { margin-top: 5rpx; overflow: hidden; color: #40534c; font-size: 22rpx; text-overflow: ellipsis; white-space: nowrap; }
+.data-row__time { flex: 0 0 auto; color: #7e8984; font-size: 18rpx; text-align: right; }
+.empty-card, .state-card { margin-top: 30rpx; padding: 42rpx 28rpx; border: 1rpx solid #ded8cf; border-radius: 12rpx; color: #77827e; font-size: 22rpx; text-align: center; background: #fff; }
+.state-card__title { color: #283631; font-size: 29rpx; font-weight: 700; }
+.state-card__description { margin: 12rpx 0 22rpx; }
+.export-button, .secondary-button { margin-top: 24rpx; border: 0; border-radius: 10rpx; font-size: 24rpx; font-weight: 700; }
+.export-button::after, .secondary-button::after { border: 0; }
+.export-button { color: #fff; background: #2e6f68; }
+.secondary-button { color: #2e6f68; background: #e4eeea; }
+.privacy-note { margin-top: 14rpx; color: #7b8581; font-size: 19rpx; line-height: 1.55; text-align: center; }

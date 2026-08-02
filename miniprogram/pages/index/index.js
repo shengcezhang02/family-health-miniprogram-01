@@ -30,10 +30,26 @@ Page({
 
   onShow() {
     syncMainNavigationSelection(this);
+
+    if (this.data.status === "ready") {
+      this.refreshFamilyContext();
+    }
   },
 
   onRetry() {
-    this.bootstrap();
+    this.bootstrap({ fresh: true });
+  },
+
+  async onPullDownRefresh() {
+    try {
+      if (this.data.status === "ready") {
+        await this.refreshFamilyContext({ fresh: true });
+      } else {
+        await this.bootstrap({ fresh: true });
+      }
+    } finally {
+      wx.stopPullDownRefresh();
+    }
   },
 
   onShowFamilyForm() {
@@ -79,7 +95,7 @@ Page({
     await this.createSpace("createPersonalSpace");
   },
 
-  async bootstrap() {
+  async bootstrap({ fresh = false } = {}) {
     this.setData({
       status: "loading",
       message: "正在连接家庭健康服务",
@@ -95,7 +111,11 @@ Page({
     }
 
     try {
-      const data = await this.callFamilyApi("bootstrap");
+      const data = await this.callFamilyApi(
+        "bootstrap",
+        undefined,
+        { fresh },
+      );
       const currentFamily = currentFamilyPreference.resolve(data.families);
 
       this.setData({
@@ -112,6 +132,26 @@ Page({
         status: "error",
         message: error.message || "暂时无法连接服务，请检查网络后重试",
       });
+    }
+  },
+
+  async refreshFamilyContext({ fresh = false } = {}) {
+    try {
+      const data = await this.callFamilyApi(
+        "bootstrap",
+        undefined,
+        { fresh },
+      );
+      const currentFamily = currentFamilyPreference.resolve(
+        data.families,
+      );
+
+      this.setData({
+        currentFamily,
+        families: data.families,
+      });
+    } catch (error) {
+      console.warn("refresh family context failed", error);
     }
   },
 
@@ -138,6 +178,20 @@ Page({
       url: `/pages/profile/profile?familyId=${family.id}&familyName=${encodeURIComponent(
         family.name,
       )}`,
+    });
+  },
+
+  onManageFamily() {
+    const family = this.data.currentFamily;
+
+    if (!family) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/family-management/family-management?familyId=${
+        family.id
+      }&familyName=${encodeURIComponent(family.name)}`,
     });
   },
 
@@ -221,7 +275,7 @@ Page({
     }
   },
 
-  async callFamilyApi(action, data) {
-    return getApp().callFamilyApi(action, data);
+  async callFamilyApi(action, data, options) {
+    return getApp().callFamilyApi(action, data, options);
   },
 });

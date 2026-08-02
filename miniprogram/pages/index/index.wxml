@@ -140,6 +140,20 @@
       </view>
     </view>
 
+    <view
+      id="manage-family-button"
+      class="manage-family-button"
+      bindtap="onManageFamily"
+    >
+      <view>
+        <view class="manage-family-button__title">管理当前家庭</view>
+        <view class="manage-family-button__description">
+          成员、角色、退出与家庭设置
+        </view>
+      </view>
+      <view class="manage-family-button__arrow">›</view>
+    </view>
+
     <view class="empty-card empty-card--records">
       <view class="empty-card__icon">记</view>
       <view class="empty-card__title">家人的健康记录</view>
@@ -219,5 +233,7 @@
     </view>
   </view>
 
-  <view class="privacy-note">健康数据通过云端权限校验，本机只保存当前家庭的编号。</view>
+  <view class="privacy-note">
+    健康数据通过云端权限校验；本机会短期保存已验证家庭的只读快照，云端更新完成后才能修改。
+  </view>
 </view>

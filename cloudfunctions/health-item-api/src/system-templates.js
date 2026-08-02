@@ -50,6 +50,24 @@ const SYSTEM_TEMPLATES = [
         required: true,
         sortOrder: 10,
       },
+      {
+        key: "measurementScene",
+        label: "测量场景",
+        type: "single_choice",
+        required: false,
+        sortOrder: 20,
+        options: [
+          { key: "fasting", label: "空腹", sortOrder: 10 },
+          { key: "before_meal", label: "餐前", sortOrder: 20 },
+          {
+            key: "after_meal_2h",
+            label: "餐后 2 小时",
+            sortOrder: 30,
+          },
+          { key: "bedtime", label: "睡前", sortOrder: 40 },
+          { key: "random", label: "随机", sortOrder: 50 },
+        ],
+      },
     ],
   },
   {
@@ -78,7 +96,14 @@ const SYSTEM_TEMPLATES = [
 function cloneTemplate(template) {
   return {
     ...template,
-    fields: template.fields.map((field) => ({ ...field })),
+    fields: template.fields.map((field) => ({
+      ...field,
+      ...(Array.isArray(field.options)
+        ? {
+            options: field.options.map((option) => ({ ...option })),
+          }
+        : {}),
+    })),
   };
 }
 

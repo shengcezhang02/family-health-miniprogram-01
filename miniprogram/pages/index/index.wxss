@@ -408,3 +408,39 @@
   font-size: 34rpx;
   font-weight: 750;
 }
+
+.manage-family-button {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin: 16rpx 0 0;
+  padding: 22rpx 26rpx;
+  border: 1rpx solid #d8d3cb;
+  border-radius: 12rpx;
+  color: #202825;
+  text-align: left;
+  background: #ffffff;
+}
+
+.manage-family-button__title {
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.manage-family-button__description {
+  margin-top: 4rpx;
+  color: #66716d;
+  font-size: 21rpx;
+}
+
+.manage-family-button__arrow {
+  color: #d95c4f;
+  font-size: 36rpx;
+}
+
+.manage-family-button::after {
+  border: 0;
+}

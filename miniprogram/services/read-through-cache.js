@@ -6,10 +6,14 @@ function createReadThroughCache({
   let revision = 0;
 
   return {
-    async get(key, load) {
+    async get(key, load, { fresh = false } = {}) {
       const cached = entries.get(key);
 
-      if (cached && now() - cached.loadedAt < ttlMs) {
+      if (
+        !fresh &&
+        cached &&
+        now() - cached.loadedAt < ttlMs
+      ) {
         return cached.value;
       }
 

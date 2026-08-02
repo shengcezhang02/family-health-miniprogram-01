@@ -3,6 +3,53 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
   const familiesById = new Map();
   const membershipsById = new Map();
   const invitesById = new Map();
+  const recurringRulesById = new Map();
+  const remindersById = new Map();
+
+  function cleanupSubjectSchedule({
+    familyId,
+    subjectUserId,
+    actorUserId,
+    timestamp,
+  }) {
+    const pausedRuleIds = new Set();
+
+    for (const [ruleId, rule] of recurringRulesById) {
+      if (
+        rule.familyId !== familyId ||
+        rule.subjectUserId !== subjectUserId ||
+        rule.status !== "active" ||
+        rule.deletedAt
+      ) {
+        continue;
+      }
+
+      recurringRulesById.set(ruleId, {
+        ...rule,
+        status: "paused",
+        pausedAt: timestamp,
+        pausedByUserId: actorUserId,
+        pauseReason: "subject_inactive",
+        updatedByUserId: actorUserId,
+        updatedAt: timestamp,
+        revision: rule.revision + 1,
+      });
+      pausedRuleIds.add(ruleId);
+    }
+
+    for (const [reminderId, reminder] of remindersById) {
+      if (
+        reminder.familyId === familyId &&
+        pausedRuleIds.has(reminder.sourceRecurringRuleId) &&
+        reminder.status === "pending" &&
+        !reminder.deletedAt &&
+        new Date(reminder.plannedAt).getTime() >
+          timestamp.getTime()
+      ) {
+        remindersById.delete(reminderId);
+      }
+    }
+  }
 
   return {
     async getUserByOpenId(openId) {
@@ -205,6 +252,383 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
       };
     },
 
+    async promoteMemberToAdmin({
+      familyId,
+      callerUserId,
+      targetUserId,
+      timestamp,
+    }) {
+      const callerMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === callerUserId &&
+          membership.status === "active",
+      );
+
+      if (callerMembership?.role !== "admin") {
+        return {
+          outcome: "admin-required",
+        };
+      }
+
+      const targetMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === targetUserId &&
+          membership.status === "active",
+      );
+
+      if (!targetMembership) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (targetMembership.role === "admin") {
+        return {
+          outcome: "updated",
+          membership: structuredClone(targetMembership),
+        };
+      }
+
+      const updated = {
+        ...targetMembership,
+        role: "admin",
+        revision: targetMembership.revision + 1,
+        updatedAt: timestamp,
+      };
+      membershipsById.set(updated._id, updated);
+      const family = familiesById.get(familyId);
+      familiesById.set(familyId, {
+        ...family,
+        revision: family.revision + 1,
+        updatedAt: timestamp,
+      });
+
+      return {
+        outcome: "updated",
+        membership: structuredClone(updated),
+      };
+    },
+
+    async demoteSelfFromAdmin({ familyId, userId, timestamp }) {
+      const membership = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === userId &&
+          candidate.status === "active",
+      );
+
+      if (membership?.role !== "admin") {
+        return {
+          outcome: "admin-required",
+        };
+      }
+
+      const otherAdminExists = [...membershipsById.values()].some(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId !== userId &&
+          candidate.status === "active" &&
+          candidate.role === "admin",
+      );
+
+      if (!otherAdminExists) {
+        return {
+          outcome: "last-admin",
+        };
+      }
+
+      const updated = {
+        ...membership,
+        role: "member",
+        revision: membership.revision + 1,
+        updatedAt: timestamp,
+      };
+      membershipsById.set(updated._id, updated);
+      const family = familiesById.get(familyId);
+      familiesById.set(familyId, {
+        ...family,
+        revision: family.revision + 1,
+        updatedAt: timestamp,
+      });
+
+      return {
+        outcome: "updated",
+        membership: structuredClone(updated),
+      };
+    },
+
+    async removeMember({
+      familyId,
+      callerUserId,
+      targetUserId,
+      timestamp,
+    }) {
+      const callerMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === callerUserId &&
+          membership.status === "active",
+      );
+
+      if (callerMembership?.role !== "admin") {
+        return {
+          outcome: "admin-required",
+        };
+      }
+
+      const targetMembership = [...membershipsById.values()].find(
+        (membership) =>
+          membership.familyId === familyId &&
+          membership.userId === targetUserId &&
+          membership.status === "active",
+      );
+
+      if (!targetMembership) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (targetMembership.role === "admin") {
+        return {
+          outcome: "target-admin",
+        };
+      }
+
+      const updated = {
+        ...targetMembership,
+        status: "inactive",
+        endedAt: timestamp,
+        endedByUserId: callerUserId,
+        endReason: "removed",
+        revision: targetMembership.revision + 1,
+        updatedAt: timestamp,
+      };
+      membershipsById.set(updated._id, updated);
+      cleanupSubjectSchedule({
+        familyId,
+        subjectUserId: targetUserId,
+        actorUserId: callerUserId,
+        timestamp,
+      });
+      const family = familiesById.get(familyId);
+      familiesById.set(familyId, {
+        ...family,
+        revision: family.revision + 1,
+        updatedAt: timestamp,
+      });
+
+      return {
+        outcome: "updated",
+        membership: structuredClone(updated),
+      };
+    },
+
+    async leaveFamily({ familyId, userId, timestamp }) {
+      const membership = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === userId &&
+          candidate.status === "active",
+      );
+
+      if (!membership) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (membership.role === "admin") {
+        const otherAdminExists = [...membershipsById.values()].some(
+          (candidate) =>
+            candidate.familyId === familyId &&
+            candidate.userId !== userId &&
+            candidate.status === "active" &&
+            candidate.role === "admin",
+        );
+
+        if (!otherAdminExists) {
+          return {
+            outcome: "last-admin",
+          };
+        }
+      }
+
+      const updated = {
+        ...membership,
+        status: "inactive",
+        endedAt: timestamp,
+        endedByUserId: userId,
+        endReason: "left",
+        revision: membership.revision + 1,
+        updatedAt: timestamp,
+      };
+      membershipsById.set(updated._id, updated);
+      cleanupSubjectSchedule({
+        familyId,
+        subjectUserId: userId,
+        actorUserId: userId,
+        timestamp,
+      });
+      const family = familiesById.get(familyId);
+      familiesById.set(familyId, {
+        ...family,
+        revision: family.revision + 1,
+        updatedAt: timestamp,
+      });
+
+      return {
+        outcome: "updated",
+        membership: structuredClone(updated),
+      };
+    },
+
+    async transferAdminAndLeave({
+      familyId,
+      userId,
+      successorUserId,
+      timestamp,
+    }) {
+      const membership = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === userId &&
+          candidate.status === "active",
+      );
+
+      if (membership?.role !== "admin") {
+        return {
+          outcome: "admin-required",
+        };
+      }
+
+      const successor = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === successorUserId &&
+          candidate.status === "active",
+      );
+
+      if (!successor || successor.userId === userId) {
+        return {
+          outcome: "successor-not-found",
+        };
+      }
+
+      const updatedSuccessor = {
+        ...successor,
+        role: "admin",
+        revision:
+          successor.role === "admin"
+            ? successor.revision
+            : successor.revision + 1,
+        updatedAt:
+          successor.role === "admin"
+            ? successor.updatedAt
+            : timestamp,
+      };
+      const updatedMembership = {
+        ...membership,
+        status: "inactive",
+        endedAt: timestamp,
+        endedByUserId: userId,
+        endReason: "left_after_transfer",
+        revision: membership.revision + 1,
+        updatedAt: timestamp,
+      };
+      membershipsById.set(
+        updatedSuccessor._id,
+        updatedSuccessor,
+      );
+      membershipsById.set(
+        updatedMembership._id,
+        updatedMembership,
+      );
+      cleanupSubjectSchedule({
+        familyId,
+        subjectUserId: userId,
+        actorUserId: userId,
+        timestamp,
+      });
+      const family = familiesById.get(familyId);
+      familiesById.set(familyId, {
+        ...family,
+        revision: family.revision + 1,
+        updatedAt: timestamp,
+      });
+
+      return {
+        outcome: "updated",
+        membership: structuredClone(updatedMembership),
+        successor: structuredClone(updatedSuccessor),
+      };
+    },
+
+    async dissolveFamily({
+      familyId,
+      userId,
+      confirmationName,
+    }) {
+      const membership = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === userId &&
+          candidate.status === "active",
+      );
+
+      if (membership?.role !== "admin") {
+        return {
+          outcome: "admin-required",
+        };
+      }
+
+      const family = familiesById.get(familyId);
+
+      if (!family) {
+        return {
+          outcome: "not-found",
+        };
+      }
+
+      if (family.name !== confirmationName) {
+        return {
+          outcome: "confirmation-mismatch",
+        };
+      }
+
+      familiesById.delete(familyId);
+
+      for (const [membershipId, candidate] of membershipsById) {
+        if (candidate.familyId === familyId) {
+          membershipsById.delete(membershipId);
+        }
+      }
+
+      for (const [inviteId, invite] of invitesById) {
+        if (invite.familyId === familyId) {
+          invitesById.delete(inviteId);
+        }
+      }
+
+      for (const [ruleId, rule] of recurringRulesById) {
+        if (rule.familyId === familyId) {
+          recurringRulesById.delete(ruleId);
+        }
+      }
+
+      for (const [reminderId, reminder] of remindersById) {
+        if (reminder.familyId === familyId) {
+          remindersById.delete(reminderId);
+        }
+      }
+
+      return {
+        outcome: "dissolved",
+      };
+    },
+
     async setMembershipStatusForTest(membershipId, status) {
       const membership = membershipsById.get(membershipId);
       membershipsById.set(membershipId, {
@@ -219,6 +643,24 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
         ...membership,
         role,
       });
+    },
+
+    async seedRecurringRuleForTest(rule) {
+      recurringRulesById.set(rule._id, structuredClone(rule));
+    },
+
+    async seedReminderForTest(reminder) {
+      remindersById.set(reminder._id, structuredClone(reminder));
+    },
+
+    async getRecurringRuleForTest(ruleId) {
+      const rule = recurringRulesById.get(ruleId);
+      return rule ? structuredClone(rule) : null;
+    },
+
+    async getReminderForTest(reminderId) {
+      const reminder = remindersById.get(reminderId);
+      return reminder ? structuredClone(reminder) : null;
     },
   };
 }

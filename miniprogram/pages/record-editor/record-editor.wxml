@@ -7,12 +7,14 @@
     </view>
   </view>
 
-  <view wx:if="{{status === 'loading'}}" class="state-card">
-    <view class="state-card__title">正在准备记录表单</view>
-    <view class="state-card__description">请稍候</view>
+  <view
+    wx:if="{{syncNotice || status === 'loading'}}"
+    class="editor-sync-indicator"
+  >
+    {{syncNotice || "正在准备表单…"}}
   </view>
 
-  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+  <view wx:if="{{status === 'error'}}" class="state-card state-card--error">
     <view class="state-card__title">暂时无法打开</view>
     <view class="state-card__description">{{errorMessage}}</view>
     <button
@@ -31,6 +33,12 @@
     </button>
   </view>
 
+  <view wx:elif="{{status === 'loading'}}" class="form-skeleton">
+    <view class="form-skeleton__card form-skeleton__card--short"></view>
+    <view class="form-skeleton__card"></view>
+    <view class="form-skeleton__button"></view>
+  </view>
+
   <view wx:else>
     <view wx:if="{{showModeSelector}}" class="form-card">
       <view class="field-label">事项形式</view>
@@ -39,6 +47,7 @@
           id="health-item-mode-record"
           class="mode-selector__button {{mode === 'record' ? 'mode-selector__button--selected' : ''}}"
           data-mode="record"
+          disabled="{{saving || formLocked}}"
           bindtap="onModeSelect"
         >
           记录
@@ -47,18 +56,19 @@
           id="health-item-mode-reminder"
           class="mode-selector__button {{mode === 'reminder' ? 'mode-selector__button--selected' : ''}}"
           data-mode="reminder"
+          disabled="{{saving || formLocked}}"
           bindtap="onModeSelect"
         >
           一次性提醒
         </button>
         <button
           id="health-item-mode-recurring"
-          class="mode-selector__button mode-selector__button--future"
+          class="mode-selector__button {{mode === 'recurring' ? 'mode-selector__button--selected' : ''}}"
           data-mode="recurring"
+          disabled="{{saving || formLocked}}"
           bindtap="onModeSelect"
         >
           周期提醒
-          <text class="mode-selector__badge">M7</text>
         </button>
       </view>
     </view>
@@ -66,14 +76,14 @@
     <view class="form-card">
       <view class="field-group">
         <view class="field-label">
-          {{mode === "reminder" ? "提醒谁" : "记录谁的健康情况"}}
+          {{mode === "record" ? "记录谁的健康情况" : "提醒谁"}}
         </view>
         <picker
           id="record-member-picker"
           range="{{members}}"
           range-key="displayLabel"
           value="{{selectedMemberIndex}}"
-          disabled="{{saving || reminderId}}"
+          disabled="{{saving || formLocked || reminderId || ruleId}}"
           bindchange="onMemberChange"
         >
           <view class="picker-value">
@@ -92,7 +102,7 @@
           range="{{templates}}"
           range-key="name"
           value="{{selectedTemplateIndex}}"
-          disabled="{{saving || reminderId}}"
+          disabled="{{saving || formLocked || reminderId || ruleId}}"
           bindchange="onTemplateChange"
         >
           <view class="picker-value">
@@ -111,7 +121,7 @@
         class="field-group"
       >
         <view class="field-label">
-          {{item.label}}{{mode === "reminder" ? "（可留到打卡时填写）" : (item.required ? "" : "（选填）")}}
+          {{item.label}}{{mode === "record" || mode === "checkIn" ? (item.required ? "" : "（选填）") : "（可留到打卡时填写）"}}
         </view>
         <view class="input-with-unit">
           <input
@@ -121,7 +131,7 @@
             type="digit"
             value="{{fieldValues[item.key]}}"
             placeholder="请输入数值"
-            disabled="{{saving}}"
+            disabled="{{saving || formLocked}}"
             data-field-key="{{item.key}}"
             bindinput="onFieldInput"
           />
@@ -131,7 +141,7 @@
             range="{{item.options}}"
             range-key="label"
             value="{{fieldChoiceIndexes[item.key] || 0}}"
-            disabled="{{saving}}"
+            disabled="{{saving || formLocked}}"
             data-field-key="{{item.key}}"
             bindchange="onChoiceChange"
           >
@@ -150,7 +160,7 @@
             maxlength="100"
             value="{{fieldValues[item.key]}}"
             placeholder="请输入{{item.label}}"
-            disabled="{{saving}}"
+            disabled="{{saving || formLocked}}"
             data-field-key="{{item.key}}"
             bindinput="onFieldInput"
           />
@@ -160,73 +170,179 @@
     </view>
 
     <view class="form-card">
-      <view class="field-label">{{timeLabel}}</view>
-      <view class="date-time-row">
-        <picker
-          mode="date"
-          value="{{occurredDate}}"
-          disabled="{{saving}}"
-          bindchange="onDateChange"
-        >
-          <view class="date-time-value">{{occurredDate}}</view>
-        </picker>
-        <picker
-          mode="time"
-          value="{{occurredTime}}"
-          disabled="{{saving}}"
-          bindchange="onTimeChange"
-        >
-          <view class="date-time-value">{{occurredTime}}</view>
-        </picker>
-      </view>
-
-      <view wx:if="{{mode === 'reminder'}}" class="field-group">
-        <view class="field-label">通知时间（选填，可添加多个）</view>
-        <view class="form-hint">
-          计划时间表示事项何时发生；通知时间表示何时提醒你。留空也能在每日健康中查看。
+      <block wx:if="{{mode === 'recurring'}}">
+        <view class="field-label">有效日期</view>
+        <view class="date-time-row">
+          <picker
+            mode="date"
+            value="{{startDate}}"
+            disabled="{{saving || formLocked}}"
+            bindchange="onStartDateChange"
+          >
+            <view class="date-time-value">{{startDate}}</view>
+          </picker>
+          <picker
+            mode="date"
+            value="{{endDate}}"
+            disabled="{{saving || formLocked}}"
+            bindchange="onEndDateChange"
+          >
+            <view class="date-time-value">{{endDate}}</view>
+          </picker>
         </view>
-        <view
-          wx:for="{{notificationTimeRows}}"
-          wx:key="index"
-          class="notification-time"
-        >
-          <view class="date-time-row">
-            <picker
-              mode="date"
-              value="{{item.date}}"
-              disabled="{{saving}}"
-              data-index="{{index}}"
-              bindchange="onNotificationDateChange"
+
+        <view class="field-group">
+          <view class="field-label">重复方式</view>
+          <picker
+            range="{{repeatTypes}}"
+            range-key="label"
+            value="{{repeatTypeIndex}}"
+            disabled="{{saving || formLocked}}"
+            bindchange="onRepeatTypeChange"
+          >
+            <view class="picker-value">
+              <view>{{repeatTypes[repeatTypeIndex].label}}</view>
+              <view class="picker-value__arrow">⌄</view>
+            </view>
+          </picker>
+
+          <view wx:if="{{repeatType === 'weekly'}}" class="weekday-row">
+            <button
+              wx:for="{{weekdayOptions}}"
+              wx:key="value"
+              class="weekday-button {{item.selected ? 'weekday-button--selected' : ''}}"
+              data-weekday="{{item.value}}"
+              disabled="{{saving || formLocked}}"
+              bindtap="onToggleWeekday"
             >
-              <view class="date-time-value">{{item.date}}</view>
-            </picker>
+              {{item.label}}
+            </button>
+          </view>
+
+          <view wx:if="{{repeatType === 'interval_days'}}" class="interval-row">
+            <text>每隔</text>
+            <input
+              class="interval-input"
+              type="number"
+              value="{{intervalDays}}"
+              disabled="{{saving || formLocked}}"
+              bindinput="onIntervalDaysInput"
+            />
+            <text>天</text>
+          </view>
+          <view
+            wx:if="{{repeatType === 'interval_days'}}"
+            class="interval-hint"
+          >
+            例如填写 1：两个提醒日之间完整空出 1 天，也就是每 2 天一次。
+          </view>
+        </view>
+
+        <view class="field-group">
+          <view class="field-label">每天的提醒时间</view>
+          <view
+            wx:for="{{dailyTimeRows}}"
+            wx:key="index"
+            class="daily-time-row"
+          >
             <picker
               mode="time"
               value="{{item.time}}"
-              disabled="{{saving}}"
+              disabled="{{saving || formLocked}}"
               data-index="{{index}}"
-              bindchange="onNotificationTimeChange"
+              bindchange="onDailyTimeChange"
             >
               <view class="date-time-value">{{item.time}}</view>
             </picker>
+            <button
+              wx:if="{{dailyTimeRows.length > 1}}"
+              class="small-text-button daily-time-remove"
+              data-index="{{index}}"
+              disabled="{{saving || formLocked}}"
+              bindtap="onRemoveDailyTime"
+            >
+              移除
+            </button>
           </view>
           <button
-            class="small-text-button"
-            disabled="{{saving}}"
-            data-index="{{index}}"
-            bindtap="onRemoveNotificationTime"
+            class="secondary-button secondary-button--compact"
+            disabled="{{saving || formLocked}}"
+            bindtap="onAddDailyTime"
           >
-            移除这个通知时间
+            ＋ 添加一个时间
           </button>
         </view>
-        <button
-          class="secondary-button secondary-button--compact"
-          disabled="{{saving}}"
-          bindtap="onAddNotificationTime"
-        >
-          ＋ 添加通知时间
-        </button>
-      </view>
+      </block>
+
+      <block wx:else>
+        <view class="field-label">{{timeLabel}}</view>
+        <view class="date-time-row">
+          <picker
+            mode="date"
+            value="{{occurredDate}}"
+            disabled="{{saving || formLocked}}"
+            bindchange="onDateChange"
+          >
+            <view class="date-time-value">{{occurredDate}}</view>
+          </picker>
+          <picker
+            mode="time"
+            value="{{occurredTime}}"
+            disabled="{{saving || formLocked}}"
+            bindchange="onTimeChange"
+          >
+            <view class="date-time-value">{{occurredTime}}</view>
+          </picker>
+        </view>
+
+        <view wx:if="{{mode === 'reminder'}}" class="field-group">
+          <view class="field-label">通知时间（选填，可添加多个）</view>
+          <view class="form-hint">
+            计划时间表示事项何时发生；通知时间表示何时提醒你。留空也能在每日健康中查看。
+          </view>
+          <view
+            wx:for="{{notificationTimeRows}}"
+            wx:key="index"
+            class="notification-time"
+          >
+            <view class="date-time-row">
+              <picker
+                mode="date"
+                value="{{item.date}}"
+                disabled="{{saving || formLocked}}"
+                data-index="{{index}}"
+                bindchange="onNotificationDateChange"
+              >
+                <view class="date-time-value">{{item.date}}</view>
+              </picker>
+              <picker
+                mode="time"
+                value="{{item.time}}"
+                disabled="{{saving || formLocked}}"
+                data-index="{{index}}"
+                bindchange="onNotificationTimeChange"
+              >
+                <view class="date-time-value">{{item.time}}</view>
+              </picker>
+            </view>
+            <button
+              class="small-text-button"
+              disabled="{{saving || formLocked}}"
+              data-index="{{index}}"
+              bindtap="onRemoveNotificationTime"
+            >
+              移除这个通知时间
+            </button>
+          </view>
+          <button
+            class="secondary-button secondary-button--compact"
+            disabled="{{saving || formLocked}}"
+            bindtap="onAddNotificationTime"
+          >
+            ＋ 添加通知时间
+          </button>
+        </view>
+      </block>
 
       <view class="field-group">
         <view class="field-label">{{remarkLabel}}</view>
@@ -242,20 +358,20 @@
           value="{{remark}}"
           maxlength="500"
           auto-height
-          disabled="{{saving}}"
-          placeholder="{{mode === 'reminder' ? '例如：饭后两小时测量' : '例如：晨起测量、饭后两小时'}}"
+          disabled="{{saving || formLocked}}"
+          placeholder="{{mode === 'reminder' || mode === 'recurring' ? '例如：饭后两小时测量' : '例如：晨起测量、饭后两小时'}}"
           bindinput="onRemarkInput"
         />
       </view>
     </view>
 
     <view
-      wx:if="{{!reminderId && mode !== 'checkIn'}}"
+      wx:if="{{!reminderId && !ruleId && mode !== 'checkIn'}}"
       class="form-card"
     >
       <view class="form-card__title">临时字段（选填）</view>
       <view class="form-hint">
-        只属于这条记录，保存后不能再改变字段结构；最多 3 个。
+        只属于这条健康事项，保存后不能再改变字段结构；最多 3 个。
       </view>
       <view
         wx:for="{{temporaryFields}}"
@@ -267,7 +383,7 @@
           maxlength="30"
           value="{{item.label}}"
           placeholder="字段名，例如：昨晚睡眠"
-          disabled="{{saving}}"
+          disabled="{{saving || formLocked}}"
           data-index="{{index}}"
           data-property="label"
           bindinput="onTemporaryFieldInput"
@@ -277,14 +393,14 @@
           maxlength="100"
           value="{{item.value}}"
           placeholder="填写内容"
-          disabled="{{saving}}"
+          disabled="{{saving || formLocked}}"
           data-index="{{index}}"
           data-property="value"
           bindinput="onTemporaryFieldInput"
         />
         <button
           class="small-text-button"
-          disabled="{{saving}}"
+          disabled="{{saving || formLocked}}"
           data-index="{{index}}"
           bindtap="onRemoveTemporaryField"
         >
@@ -294,7 +410,7 @@
       <button
         wx:if="{{temporaryFields.length < 3}}"
         class="secondary-button"
-        disabled="{{saving}}"
+        disabled="{{saving || formLocked}}"
         bindtap="onAddTemporaryField"
       >
         ＋ 添加临时字段
@@ -306,10 +422,20 @@
     </view>
 
     <button
+      wx:if="{{ruleId}}"
+      class="secondary-button"
+      loading="{{saving}}"
+      disabled="{{saving || formLocked}}"
+      bindtap="onToggleRuleStatus"
+    >
+      {{ruleStatus === "paused" ? "恢复周期规则" : "暂停周期规则"}}
+    </button>
+
+    <button
       id="record-save-button"
       class="primary-button"
       loading="{{saving}}"
-      disabled="{{saving}}"
+      disabled="{{saving || formLocked}}"
       bindtap="onSave"
     >
       {{submitLabel}}

@@ -1,0 +1,87 @@
+<view class="page-shell">
+  <view class="page-header">
+    <view class="page-header__eyebrow">DASHBOARD · {{familyName}}</view>
+    <view class="page-header__title">管理卡片</view>
+    <view class="page-header__description">
+      卡片配置只保存在当前账号的这台设备，不改变家庭健康数据。
+    </view>
+  </view>
+
+  <view wx:if="{{status === 'error'}}" class="state-card">
+    <view class="state-card__title">暂时无法打开</view>
+    <view class="state-card__description">{{errorMessage}}</view>
+  </view>
+
+  <block wx:else>
+    <button class="add-card-button" bindtap="onToggleTypePicker">
+      {{showTypePicker ? "收起卡片类型" : "+ 添加卡片"}}
+    </button>
+
+    <view wx:if="{{showTypePicker}}" class="type-picker">
+      <view
+        wx:for="{{typeOptions}}"
+        wx:key="value"
+        class="type-option"
+        data-type="{{item.value}}"
+        bindtap="onAddCard"
+      >
+        <view class="type-option__label">{{item.label}}</view>
+        <view class="type-option__description">{{item.description}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{cards.length === 0}}" class="state-card">
+      <view class="state-card__title">还没有卡片</view>
+      <view class="state-card__description">
+        选择一种预设类型开始；以后仍可复制和重新排序。
+      </view>
+    </view>
+
+    <view wx:else class="card-list">
+      <view
+        wx:for="{{cards}}"
+        wx:key="id"
+        class="manage-card"
+      >
+        <view
+          class="manage-card__main"
+          data-card-id="{{item.id}}"
+          bindtap="onOpenCard"
+        >
+          <view class="manage-card__position">{{item.positionLabel}}</view>
+          <view class="manage-card__copy">
+            <view class="manage-card__type">{{item.typeLabel}}</view>
+            <view class="manage-card__title">{{item.title}}</view>
+          </view>
+          <view class="manage-card__open">›</view>
+        </view>
+        <view class="manage-card__actions">
+          <button
+            class="action-button"
+            disabled="{{!item.canMoveUp}}"
+            data-card-id="{{item.id}}"
+            data-direction="-1"
+            catchtap="onMoveCard"
+          >上移</button>
+          <button
+            class="action-button"
+            disabled="{{!item.canMoveDown}}"
+            data-card-id="{{item.id}}"
+            data-direction="1"
+            catchtap="onMoveCard"
+          >下移</button>
+          <button
+            class="action-button"
+            data-card-id="{{item.id}}"
+            catchtap="onCopyCard"
+          >复制</button>
+          <button
+            class="action-button action-button--danger"
+            data-card-id="{{item.id}}"
+            catchtap="onDeleteCard"
+          >删除</button>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

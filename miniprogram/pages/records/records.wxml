@@ -5,13 +5,13 @@
       <view>
         <view class="records-header__title">健康记录</view>
         <view class="records-header__description">
-          通过多张卡片查看自己和家人的长期健康数据。
+          用不同卡片，关注自己和家人的长期变化。
         </view>
       </view>
       <button
         wx:if="{{status === 'ready'}}"
         id="records-switch-family-button"
-        class="add-button"
+        class="switch-button"
         bindtap="onSwitchFamily"
       >
         切换家庭
@@ -22,7 +22,7 @@
   <view wx:if="{{status === 'ready'}}" class="records-tools">
     <button
       id="manage-dashboard-cards-button"
-      class="tool-button"
+      class="tool-button tool-button--primary"
       bindtap="onManageCards"
     >
       管理卡片
@@ -32,12 +32,14 @@
     </button>
   </view>
 
-  <view wx:if="{{status === 'loading'}}" class="state-card">
-    <view class="state-card__title">正在加载健康记录</view>
-    <view class="state-card__description">请稍候</view>
+  <view
+    wx:if="{{cacheNotice || status === 'loading'}}"
+    class="sync-indicator"
+  >
+    {{cacheNotice || "正在同步健康记录…"}}
   </view>
 
-  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+  <view wx:if="{{status === 'error'}}" class="state-card state-card--error">
     <view class="state-card__title">暂时无法打开</view>
     <view class="state-card__description">{{errorMessage}}</view>
     <button
@@ -47,73 +49,255 @@
     >
       返回首页
     </button>
-    <button
-      wx:else
-      class="secondary-button"
-      bindtap="onRetry"
-    >
+    <button wx:else class="secondary-button" bindtap="onRetry">
       重新加载
     </button>
   </view>
 
-  <view wx:elif="{{status === 'ready'}}" class="dashboard-card">
-    <view class="dashboard-card__header">
-      <view>
-        <view class="dashboard-card__type">记录列表</view>
-        <view class="dashboard-card__title">近期记录</view>
-      </view>
-      <view class="dashboard-card__filter">全部成员 · 全部时间</view>
+  <view wx:elif="{{status === 'ready' && cards.length === 0}}" class="empty-dashboard">
+    <view class="empty-dashboard__mark">卡</view>
+    <view class="empty-dashboard__title">看板还是空的</view>
+    <view class="empty-dashboard__description">
+      添加趋势、记录列表、最新数据、提醒完成或周期提醒卡片。
     </view>
+    <button class="primary-button" bindtap="onManageCards">添加第一张卡片</button>
+  </view>
 
-    <view wx:if="{{items.length === 0}}" class="empty-state empty-state--inside-card">
-      <view class="empty-state__icon">记</view>
-      <view class="empty-state__title">这张卡片还没有记录</view>
-      <view class="empty-state__description">
-        点击底部中央“+”，从一条体温、血压、血糖或用药记录开始。
-      </view>
-    </view>
-
-    <view wx:else class="timeline">
-      <view
-        wx:for="{{items}}"
-        wx:key="id"
-        class="timeline-item"
-      >
-        <view class="timeline-item__dot"></view>
+  <view wx:elif="{{status === 'ready'}}" class="dashboard-list">
+    <view
+      wx:for="{{cards}}"
+      wx:key="id"
+      wx:for-item="card"
+      class="dashboard-card dashboard-card--{{card.type}}"
+    >
+      <view class="dashboard-card__header">
         <view
-          id="record-card-{{item.id}}"
-          class="record-card"
-          data-record-id="{{item.id}}"
-          bindtap="onOpenRecord"
+          class="dashboard-card__heading"
+          data-card-id="{{card.id}}"
+          bindtap="onOpenCard"
         >
-          <view class="record-card__top">
-            <view>
-              <view class="record-card__template">
-                {{item.templateNameSnapshot}}
-              </view>
-              <view class="record-card__subject">
-                {{item.displaySubjectName}}
-              </view>
+          <view class="dashboard-card__type">{{card.typeLabel}}</view>
+          <view class="dashboard-card__title-row">
+            <view class="dashboard-card__title">{{card.title}}</view>
+            <view class="dashboard-card__open">›</view>
+          </view>
+          <view class="dashboard-card__filter">{{card.filterLabel}}</view>
+        </view>
+
+        <view class="dashboard-card__quick-filters">
+          <picker
+            range="{{quickMemberOptions}}"
+            range-key="label"
+            data-card-id="{{card.id}}"
+            bindchange="onQuickMemberChange"
+          >
+            <view class="quick-filter quick-filter--member">
+              <text class="quick-filter__icon">人</text>
+              <text>成员</text>
+              <text class="quick-filter__chevron">⌄</text>
             </view>
-            <view class="record-card__time">{{item.displayOccurredAt}}</view>
-          </view>
-          <view class="record-card__values">
-            <view
-              wx:for="{{item.displayFields}}"
-              wx:for-item="field"
-              wx:key="key"
-              class="record-value"
-            >
-              <view class="record-value__label">{{field.label}}</view>
-              <view class="record-value__content">{{field.value}}</view>
+          </picker>
+          <picker
+            wx:if="{{card.type !== 'recurring_rules'}}"
+            range="{{timeRangeOptions}}"
+            range-key="label"
+            data-card-id="{{card.id}}"
+            bindchange="onQuickTimeRangeChange"
+          >
+            <view class="quick-filter quick-filter--range">
+              <text class="quick-filter__icon">期</text>
+              <text>范围</text>
+              <text class="quick-filter__chevron">⌄</text>
             </view>
-          </view>
-          <view wx:if="{{item.remark}}" class="record-card__remark">
-            备注：{{item.remark}}
-          </view>
-          <view class="record-card__open">查看与编辑 ›</view>
+          </picker>
         </view>
       </view>
+
+      <block wx:if="{{card.type === 'record_list'}}">
+        <view wx:if="{{card.items.length === 0}}" class="card-empty">
+          当前筛选下没有记录
+        </view>
+        <view wx:else class="compact-list">
+          <view
+            wx:for="{{card.items}}"
+            wx:key="id"
+            wx:for-item="record"
+            class="record-row"
+            data-record-id="{{record.id}}"
+            bindtap="onOpenRecord"
+          >
+            <view class="record-row__identity">
+              <text class="record-row__name">{{record.templateNameSnapshot}}</text>
+              <text class="record-row__member">· {{record.displaySubjectName}}</text>
+            </view>
+            <view class="record-row__values">
+              <text
+                wx:for="{{record.displayFields}}"
+                wx:key="key"
+                wx:for-item="field"
+                class="record-row__value"
+              >{{field.label}} {{field.value}}</text>
+            </view>
+            <view class="record-row__time">{{record.displayOccurredAt}}</view>
+          </view>
+        </view>
+      </block>
+
+      <block wx:elif="{{card.type === 'latest_data'}}">
+        <view wx:if="{{card.items.length === 0}}" class="card-empty">
+          当前筛选下没有最新数据
+        </view>
+        <view wx:else class="latest-grid">
+          <view
+            wx:for="{{card.items}}"
+            wx:key="memberId"
+            wx:for-item="latest"
+            class="latest-panel"
+            data-record-id="{{latest.record.id}}"
+            bindtap="onOpenRecord"
+          >
+            <view class="latest-panel__meta">
+              {{latest.memberLabel}} · {{latest.displayOccurredAt}}
+            </view>
+            <view
+              wx:for="{{latest.values}}"
+              wx:key="key"
+              wx:for-item="value"
+              class="latest-value"
+            >
+              <view>
+                <text class="latest-value__number">{{value.displayValue}}</text>
+                <text class="latest-value__label">{{value.label}}</text>
+              </view>
+              <view class="latest-value__change">{{value.changeLabel}}</view>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <block wx:elif="{{card.type === 'trend'}}">
+        <view wx:if="{{card.series.length === 0}}" class="card-empty">
+          请选择含数值字段的健康项目，或等待产生记录
+        </view>
+        <view wx:else class="trend-list">
+          <view
+            wx:for="{{card.series}}"
+            wx:key="key"
+            wx:for-item="series"
+            class="trend-series"
+          >
+            <view class="trend-series__summary">
+              <view class="trend-series__label">{{series.label}}</view>
+              <view class="trend-series__latest">{{series.latestValue}}</view>
+            </view>
+            <view class="trend-chart">
+              <view class="trend-y-axis">
+                <view
+                  wx:for="{{series.yAxis}}"
+                  wx:key="position"
+                  wx:for-item="tick"
+                  class="trend-y-tick"
+                  style="bottom: {{tick.position}}%;"
+                >{{tick.value}}</view>
+              </view>
+              <view class="trend-plot">
+                <view
+                  wx:for="{{series.references}}"
+                  wx:key="label"
+                  wx:for-item="reference"
+                  class="trend-reference"
+                  style="bottom: {{reference.position}}%;"
+                >
+                  <view class="trend-reference__line"></view>
+                  <view class="trend-reference__label">{{reference.label}}</view>
+                </view>
+                <view
+                  wx:for="{{series.points}}"
+                  wx:key="recordId"
+                  wx:for-item="point"
+                  class="trend-point-slot"
+                  data-record-id="{{point.recordId}}"
+                  bindtap="onOpenRecord"
+                >
+                  <view
+                    wx:if="{{point.linePolygon}}"
+                    class="trend-line"
+                    style="-webkit-clip-path: polygon({{point.linePolygon}}); clip-path: polygon({{point.linePolygon}});"
+                  ></view>
+                  <view
+                    class="trend-point"
+                    style="bottom: {{point.position}}%;"
+                  ></view>
+                </view>
+              </view>
+            </view>
+            <view class="trend-series__range">
+              <text>{{series.firstTime}}</text>
+              <text>时间</text>
+              <text>{{series.lastTime}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <block wx:elif="{{card.type === 'reminder_completion'}}">
+        <view class="completion-summary">
+          <view class="completion-summary__rate">{{card.summary.rate}}%</view>
+          <view class="completion-summary__copy">
+            <view>完成 {{card.summary.completed}} / {{card.summary.expected}}</view>
+            <view class="completion-progress">
+              <view
+                class="completion-progress__value"
+                style="width: {{card.summary.rate}}%;"
+              ></view>
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{card.items.length === 0}}" class="card-empty card-empty--small">
+          当前范围内没有未完成提醒
+        </view>
+        <view wx:else class="compact-list">
+          <view
+            wx:for="{{card.items}}"
+            wx:key="id"
+            wx:for-item="reminder"
+            class="reminder-row"
+            data-reminder-id="{{reminder.id}}"
+            bindtap="onOpenReminder"
+          >
+            <view>
+              <view class="reminder-row__name">{{reminder.templateNameSnapshot}}</view>
+              <view class="reminder-row__member">{{reminder.subject.displayName}}</view>
+            </view>
+            <view class="reminder-row__right">
+              <view class="reminder-row__status">{{reminder.displayStatus}}</view>
+              <view class="reminder-row__time">{{reminder.displayPlannedAt}}</view>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <block wx:else>
+        <view wx:if="{{card.items.length === 0}}" class="card-empty">
+          当前筛选下没有周期提醒
+        </view>
+        <view wx:else class="compact-list">
+          <view
+            wx:for="{{card.items}}"
+            wx:key="id"
+            wx:for-item="rule"
+            class="rule-row"
+            data-rule-id="{{rule.id}}"
+            bindtap="onOpenRule"
+          >
+            <view class="rule-row__main">
+              <view class="rule-row__name">{{rule.templateNameSnapshot}} · {{rule.memberLabel}}</view>
+              <view class="rule-row__schedule">{{rule.scheduleLabel}}</view>
+            </view>
+            <view class="rule-row__status">{{rule.statusLabel}}</view>
+          </view>
+        </view>
+      </block>
     </view>
   </view>
 </view>

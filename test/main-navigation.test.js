@@ -100,7 +100,7 @@ test("进阶分析只展示原版文档确认的三个预设分析和数据导�
     {
       id: "analysis-data-export",
       title: "数据与导出",
-      description: "查看筛选后的原始数据，导出 CSV 或保存分析长图",
+      description: "查看筛选后的原始数据，导出 Excel 或保存分析长图",
     },
   ]);
 });
@@ -109,15 +109,15 @@ test("底部加号打开原版文档定义的三个全局添加入口", () => {
   assert.deepEqual(getQuickAddActions(), [
     {
       id: "health-item",
-      label: "新增健康事项",
+      label: "事项",
     },
     {
       id: "care-share",
-      label: "发起关心分享",
+      label: "分享",
     },
     {
       id: "health-template",
-      label: "新建健康项目",
+      label: "模板",
     },
   ]);
 });

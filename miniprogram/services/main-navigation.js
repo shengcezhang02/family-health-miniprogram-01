@@ -33,15 +33,15 @@ const MAIN_NAVIGATION_ITEMS = [
 const QUICK_ADD_ACTIONS = [
   {
     id: "health-item",
-    label: "新增健康事项",
+    label: "事项",
   },
   {
     id: "care-share",
-    label: "发起关心分享",
+    label: "分享",
   },
   {
     id: "health-template",
-    label: "新建健康项目",
+    label: "模板",
   },
 ];
 
@@ -64,7 +64,7 @@ const ADVANCED_ANALYSIS_ENTRIES = [
   {
     id: "analysis-data-export",
     title: "数据与导出",
-    description: "查看筛选后的原始数据，导出 CSV 或保存分析长图",
+    description: "查看筛选后的原始数据，导出 Excel 或保存分析长图",
   },
 ];
 

@@ -41,12 +41,18 @@ Page({
       return;
     }
 
-    wx.showModal({
-      title: entry.title,
-      content:
-        "入口已按原版文档恢复；分析查询、图表和导出将在后续独立里程碑中实现。",
-      showCancel: false,
-      confirmText: "知道了",
+    const routes = {
+      "blood-pressure":
+        "/pages/analysis-detail/analysis-detail?type=blood_pressure",
+      "blood-glucose":
+        "/pages/analysis-detail/analysis-detail?type=blood_glucose",
+      "medication-completion":
+        "/pages/analysis-detail/analysis-detail?type=medication",
+      "analysis-data-export": "/pages/analysis-data/analysis-data",
+    };
+
+    wx.navigateTo({
+      url: routes[entry.id],
     });
   },
 

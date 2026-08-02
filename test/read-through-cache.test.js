@@ -62,3 +62,33 @@ test("写操作清空读取缓存并推进修订号", async () => {
   assert.equal(cache.getRevision(), 1);
   assert.equal(await cache.get("records:family-1", load), 2);
 });
+
+test("强制刷新绕过有效缓存，并用云端新值替换旧缓存", async () => {
+  let cloudRole = "member";
+  let loadCount = 0;
+  const cache = createReadThroughCache({
+    ttlMs: 30_000,
+    now: () => 1_000,
+  });
+  const load = async () => {
+    loadCount += 1;
+    return { role: cloudRole };
+  };
+
+  assert.deepEqual(await cache.get("family:bootstrap", load), {
+    role: "member",
+  });
+
+  cloudRole = "admin";
+  assert.deepEqual(await cache.get("family:bootstrap", load), {
+    role: "member",
+  });
+  assert.deepEqual(
+    await cache.get("family:bootstrap", load, { fresh: true }),
+    { role: "admin" },
+  );
+  assert.deepEqual(await cache.get("family:bootstrap", load), {
+    role: "admin",
+  });
+  assert.equal(loadCount, 2);
+});

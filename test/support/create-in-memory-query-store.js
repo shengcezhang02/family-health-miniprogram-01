@@ -3,6 +3,7 @@ function createInMemoryQueryStore({
   memberships = [],
   records = [],
   reminders = [],
+  recurringRules = [],
 } = {}) {
   const usersById = new Map(
     users.map((user) => [user._id, structuredClone(user)]),
@@ -31,6 +32,34 @@ function createInMemoryQueryStore({
         )
         .slice(0, limit)
         .map((record) => structuredClone(record));
+    },
+
+    async listDashboardRecords(familyId) {
+      return records
+        .filter(
+          (record) =>
+            record.familyId === familyId &&
+            record.deletedAt === undefined,
+        )
+        .sort(
+          (left, right) =>
+            right.occurredAt.getTime() - left.occurredAt.getTime(),
+        )
+        .map((record) => structuredClone(record));
+    },
+
+    async listDashboardReminders(familyId) {
+      return reminders
+        .filter(
+          (reminder) =>
+            reminder.familyId === familyId &&
+            reminder.deletedAt === undefined,
+        )
+        .sort(
+          (left, right) =>
+            right.plannedAt.getTime() - left.plannedAt.getTime(),
+        )
+        .map((reminder) => structuredClone(reminder));
     },
 
     async listDeletedRecords(familyId, limit) {
@@ -77,6 +106,22 @@ function createInMemoryQueryStore({
             left.plannedAt.getTime() - right.plannedAt.getTime(),
         )
         .map((reminder) => structuredClone(reminder));
+    },
+
+    async listActiveMemberships(familyId) {
+      return memberships
+        .filter(
+          (membership) =>
+            membership.familyId === familyId &&
+            membership.status === "active",
+        )
+        .map((membership) => structuredClone(membership));
+    },
+
+    async listRecurringRules(familyId) {
+      return recurringRules
+        .filter((rule) => rule.familyId === familyId)
+        .map((rule) => structuredClone(rule));
     },
 
     async getUsersByIds(userIds) {

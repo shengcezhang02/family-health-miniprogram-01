@@ -6,6 +6,81 @@ const {
   createInMemoryFamilyStore,
 } = require("./support/create-in-memory-family-store");
 
+function createFamilyScenario() {
+  const familyStore = createInMemoryFamilyStore();
+  let currentOpenId = "admin-openid";
+  let nextId = 0;
+  let nextInvite = 0;
+  const api = createFamilyApi({
+    getCallerIdentity: async () => ({
+      openId: currentOpenId,
+    }),
+    familyStore,
+    createId: () => `scenario-id-${++nextId}`,
+    now: () => new Date("2026-07-31T12:00:00.000Z"),
+    createInviteCredentials: () => {
+      const inviteNumber = ++nextInvite;
+
+      return {
+        token: `scenario-token-${inviteNumber}`,
+        shortCode: `SC${String(inviteNumber).padStart(4, "0")}`,
+        tokenHash: `scenario-token-hash-${inviteNumber}`,
+        shortCodeHash: `scenario-short-code-hash-${inviteNumber}`,
+      };
+    },
+    hashInviteToken: (token) =>
+      token.replace("scenario-token-", "scenario-token-hash-"),
+    hashInviteShortCode: (shortCode) =>
+      shortCode.replace("SC", "scenario-short-code-hash-"),
+  });
+
+  return {
+    api,
+    familyStore,
+    useUser(openId) {
+      currentOpenId = openId;
+    },
+    async createFamily(name = "M8 测试家庭") {
+      const result = await api.handle({
+        action: "createFamily",
+        requestId: `req-create-${name}`,
+        data: {
+          name,
+        },
+      });
+
+      return result.data.family;
+    },
+    async joinMember(familyId, openId) {
+      const invite = await api.handle({
+        action: "createInvite",
+        requestId: `req-invite-${openId}`,
+        data: {
+          familyId,
+        },
+      });
+      currentOpenId = openId;
+      const joined = await api.handle({
+        action: "joinFamily",
+        requestId: `req-join-${openId}`,
+        data: {
+          token: invite.data.invite.token,
+          profileManagementAllowed: true,
+        },
+      });
+      const bootstrapped = await api.handle({
+        action: "bootstrap",
+        requestId: `req-bootstrap-${openId}`,
+      });
+
+      return {
+        family: joined.data.family,
+        user: bootstrapped.data.user,
+      };
+    },
+  };
+}
+
 test("不支持的 action 返回稳定的 UNSUPPORTED_ACTION 错误", async () => {
   const api = createFamilyApi();
 
@@ -653,4 +728,458 @@ test("bootstrap 不信任请求中伪造的身份和角色", async () => {
       message: "无法确认微信身份，请重新进入小程序",
     },
   });
+});
+
+test("普通成员不能把其他成员提升为管理员", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  await scenario.joinMember(family.id, "member-a-openid");
+  scenario.useUser("admin-openid");
+  const memberB = await scenario.joinMember(
+    family.id,
+    "member-b-openid",
+  );
+  scenario.useUser("member-a-openid");
+
+  const result = await scenario.api.handle({
+    action: "promoteMemberToAdmin",
+    requestId: "req-member-promote",
+    data: {
+      familyId: family.id,
+      targetUserId: memberB.user.id,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "ADMIN_REQUIRED");
+});
+
+test("管理员可以把有效普通成员提升为管理员", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "promoted-member-openid",
+  );
+  scenario.useUser("admin-openid");
+
+  const result = await scenario.api.handle({
+    action: "promoteMemberToAdmin",
+    requestId: "req-admin-promote",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+  scenario.useUser("promoted-member-openid");
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-promoted-bootstrap",
+  });
+
+  assert.deepEqual(result.data.member, {
+    id: member.user.id,
+    role: "admin",
+  });
+  assert.equal(bootstrapped.data.families[0].role, "admin");
+});
+
+test("唯一管理员不能把自己降级为普通成员", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily("唯一管理员家庭");
+
+  const result = await scenario.api.handle({
+    action: "demoteSelfFromAdmin",
+    requestId: "req-last-admin-demote",
+    data: {
+      familyId: family.id,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "LAST_ADMIN_CANNOT_DEMOTE");
+});
+
+test("存在另一名管理员时管理员可以降级自己", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "other-admin-openid",
+  );
+  scenario.useUser("admin-openid");
+  await scenario.api.handle({
+    action: "promoteMemberToAdmin",
+    requestId: "req-promote-other-admin",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+
+  const result = await scenario.api.handle({
+    action: "demoteSelfFromAdmin",
+    requestId: "req-demote-self",
+    data: {
+      familyId: family.id,
+    },
+  });
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-demoted-admin",
+  });
+
+  assert.deepEqual(result.data.member, {
+    id: bootstrapped.data.user.id,
+    role: "member",
+  });
+  assert.equal(bootstrapped.data.families[0].role, "member");
+});
+
+test("两名管理员同时降级自己时家庭仍保留一名管理员", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "concurrent-admin-openid",
+  );
+  scenario.useUser("admin-openid");
+  await scenario.api.handle({
+    action: "promoteMemberToAdmin",
+    requestId: "req-promote-concurrent-admin",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+
+  scenario.useUser("admin-openid");
+  const first = scenario.api.handle({
+    action: "demoteSelfFromAdmin",
+    requestId: "req-concurrent-demote-a",
+    data: {
+      familyId: family.id,
+    },
+  });
+  scenario.useUser("concurrent-admin-openid");
+  const second = scenario.api.handle({
+    action: "demoteSelfFromAdmin",
+    requestId: "req-concurrent-demote-b",
+    data: {
+      familyId: family.id,
+    },
+  });
+  const results = await Promise.all([first, second]);
+
+  assert.deepEqual(
+    results.map((result) =>
+      result.ok ? "demoted" : result.error.code,
+    ),
+    ["demoted", "LAST_ADMIN_CANNOT_DEMOTE"],
+  );
+});
+
+test("管理员不能移除另一名管理员", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "protected-admin-openid",
+  );
+  scenario.useUser("admin-openid");
+  await scenario.api.handle({
+    action: "promoteMemberToAdmin",
+    requestId: "req-promote-protected-admin",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+
+  const result = await scenario.api.handle({
+    action: "removeMember",
+    requestId: "req-remove-other-admin",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "CANNOT_REMOVE_ADMIN");
+});
+
+test("管理员移除普通成员后对方立即失去家庭访问权限", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "removed-member-openid",
+  );
+  scenario.useUser("admin-openid");
+
+  const removed = await scenario.api.handle({
+    action: "removeMember",
+    requestId: "req-remove-member",
+    data: {
+      familyId: family.id,
+      targetUserId: member.user.id,
+    },
+  });
+  scenario.useUser("removed-member-openid");
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-removed-member-bootstrap",
+  });
+
+  assert.deepEqual(removed.data.member, {
+    id: member.user.id,
+    status: "inactive",
+  });
+  assert.deepEqual(bootstrapped.data.families, []);
+});
+
+test("普通成员可以主动退出家庭并立即失去访问权限", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  await scenario.joinMember(family.id, "leaving-member-openid");
+
+  const left = await scenario.api.handle({
+    action: "leaveFamily",
+    requestId: "req-member-leave",
+    data: {
+      familyId: family.id,
+    },
+  });
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-member-after-leave",
+  });
+
+  assert.equal(left.data.familyId, family.id);
+  assert.equal(left.data.status, "inactive");
+  assert.deepEqual(bootstrapped.data.families, []);
+});
+
+test("唯一管理员没有接任者时不能退出家庭", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily("不可无管理员家庭");
+
+  const result = await scenario.api.handle({
+    action: "leaveFamily",
+    requestId: "req-last-admin-leave",
+    data: {
+      familyId: family.id,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "LAST_ADMIN_MUST_TRANSFER");
+});
+
+test("唯一管理员可以在同一操作中转让管理员并退出", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const successor = await scenario.joinMember(
+    family.id,
+    "successor-openid",
+  );
+  scenario.useUser("admin-openid");
+
+  const transferred = await scenario.api.handle({
+    action: "transferAdminAndLeave",
+    requestId: "req-transfer-and-leave",
+    data: {
+      familyId: family.id,
+      successorUserId: successor.user.id,
+    },
+  });
+  const oldAdmin = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-old-admin-after-transfer",
+  });
+  scenario.useUser("successor-openid");
+  const newAdmin = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-successor-after-transfer",
+  });
+
+  assert.deepEqual(transferred.data, {
+    familyId: family.id,
+    successor: {
+      id: successor.user.id,
+      role: "admin",
+    },
+    status: "inactive",
+  });
+  assert.deepEqual(oldAdmin.data.families, []);
+  assert.equal(newAdmin.data.families[0].role, "admin");
+});
+
+test("成员离开只暂停其本人规则并清理对应的未来未打卡提醒", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const member = await scenario.joinMember(
+    family.id,
+    "cleanup-member-openid",
+  );
+  scenario.useUser("admin-openid");
+  const admin = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-cleanup-admin-bootstrap",
+  });
+  const timestamp = new Date("2026-07-31T12:00:00.000Z");
+  await scenario.familyStore.seedRecurringRuleForTest({
+    _id: "leaving-subject-rule",
+    familyId: family.id,
+    subjectUserId: member.user.id,
+    createdByUserId: admin.data.user.id,
+    status: "active",
+    revision: 1,
+  });
+  await scenario.familyStore.seedRecurringRuleForTest({
+    _id: "leaving-creator-rule",
+    familyId: family.id,
+    subjectUserId: admin.data.user.id,
+    createdByUserId: member.user.id,
+    status: "active",
+    revision: 1,
+  });
+  await scenario.familyStore.seedReminderForTest({
+    _id: "future-pending-reminder",
+    familyId: family.id,
+    subjectUserId: member.user.id,
+    sourceRecurringRuleId: "leaving-subject-rule",
+    status: "pending",
+    plannedAt: new Date(timestamp.getTime() + 60_000),
+  });
+  await scenario.familyStore.seedReminderForTest({
+    _id: "past-pending-reminder",
+    familyId: family.id,
+    subjectUserId: member.user.id,
+    sourceRecurringRuleId: "leaving-subject-rule",
+    status: "pending",
+    plannedAt: new Date(timestamp.getTime() - 60_000),
+  });
+  await scenario.familyStore.seedReminderForTest({
+    _id: "future-completed-reminder",
+    familyId: family.id,
+    subjectUserId: member.user.id,
+    sourceRecurringRuleId: "leaving-subject-rule",
+    status: "completed",
+    plannedAt: new Date(timestamp.getTime() + 60_000),
+  });
+  await scenario.familyStore.seedReminderForTest({
+    _id: "standalone-future-reminder",
+    familyId: family.id,
+    subjectUserId: member.user.id,
+    status: "pending",
+    plannedAt: new Date(timestamp.getTime() + 60_000),
+  });
+  scenario.useUser("cleanup-member-openid");
+
+  await scenario.api.handle({
+    action: "leaveFamily",
+    requestId: "req-leave-with-cleanup",
+    data: {
+      familyId: family.id,
+    },
+  });
+
+  const pausedRule =
+    await scenario.familyStore.getRecurringRuleForTest(
+      "leaving-subject-rule",
+    );
+  const creatorRule =
+    await scenario.familyStore.getRecurringRuleForTest(
+      "leaving-creator-rule",
+    );
+  assert.equal(pausedRule.status, "paused");
+  assert.equal(pausedRule.pauseReason, "subject_inactive");
+  assert.equal(creatorRule.status, "active");
+  assert.equal(
+    await scenario.familyStore.getReminderForTest(
+      "future-pending-reminder",
+    ),
+    null,
+  );
+  assert.ok(
+    await scenario.familyStore.getReminderForTest(
+      "past-pending-reminder",
+    ),
+  );
+  assert.ok(
+    await scenario.familyStore.getReminderForTest(
+      "future-completed-reminder",
+    ),
+  );
+  assert.ok(
+    await scenario.familyStore.getReminderForTest(
+      "standalone-future-reminder",
+    ),
+  );
+});
+
+test("普通成员不能解散家庭", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily("禁止越权解散");
+  await scenario.joinMember(family.id, "dissolve-member-openid");
+
+  const result = await scenario.api.handle({
+    action: "dissolveFamily",
+    requestId: "req-member-dissolve",
+    data: {
+      familyId: family.id,
+      confirmationName: family.name,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "ADMIN_REQUIRED");
+});
+
+test("管理员必须输入完整家庭名称才能解散", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily("需要二次确认的家庭");
+
+  const result = await scenario.api.handle({
+    action: "dissolveFamily",
+    requestId: "req-dissolve-wrong-name",
+    data: {
+      familyId: family.id,
+      confirmationName: "输入错了",
+    },
+  });
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-after-wrong-confirmation",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "CONFIRMATION_MISMATCH");
+  assert.equal(bootstrapped.data.families.length, 1);
+});
+
+test("管理员二次确认后可以永久解散临时家庭", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily("待解散临时家庭");
+
+  const result = await scenario.api.handle({
+    action: "dissolveFamily",
+    requestId: "req-dissolve-confirmed",
+    data: {
+      familyId: family.id,
+      confirmationName: family.name,
+    },
+  });
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-after-dissolve",
+  });
+
+  assert.deepEqual(result.data, {
+    familyId: family.id,
+    dissolved: true,
+  });
+  assert.deepEqual(bootstrapped.data.families, []);
 });
