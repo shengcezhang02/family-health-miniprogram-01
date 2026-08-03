@@ -1,0 +1,38 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "token_hash_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "tokenHash",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "family_reminder_sent",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "familyId",
+            "Direction": "1"
+          },
+          {
+            "Name": "reminderId",
+            "Direction": "1"
+          },
+          {
+            "Name": "sentAt",
+            "Direction": "-1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}

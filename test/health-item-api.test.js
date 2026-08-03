@@ -49,6 +49,7 @@ function createApiFor({
   records = [],
   reminders = [],
   recurringRules = [],
+  careShares = [],
   now = new Date("2026-07-29T01:30:00.000Z"),
   createRecordId = () => "record-1",
   createReminderId = () => "reminder-1",
@@ -62,6 +63,7 @@ function createApiFor({
     records,
     reminders,
     recurringRules,
+    careShares,
   });
   const api = createHealthItemApi({
     getCaller: async () => structuredClone(caller),
@@ -71,6 +73,7 @@ function createApiFor({
     createReminderId,
     createRuleId,
     createCheckInRecordId,
+    hashCareShareToken: (token) => `digest:${token}`,
     now: () => now,
   });
 
@@ -610,6 +613,48 @@ test("提醒打卡会在同一业务动作中完成提醒并创建关联记录",
       originRecordId: "record-for-reminder-1",
     },
   ]);
+});
+
+test("关心分享提交复用提醒打卡能力并创建同一种关联记录", async () => {
+  const caller = createUser();
+  const reminder = createPendingReminder({
+    subjectUserId: caller._id,
+  });
+  const { api, healthItemStore } = createApiFor({
+    caller,
+    reminders: [reminder],
+    careShares: [
+      {
+        _id: "care-share-1",
+        familyId: reminder.familyId,
+        reminderId: reminder._id,
+        subjectUserId: caller._id,
+        senderUserId: caller._id,
+        tokenHash: "digest:share-token",
+        expiresAt: new Date("2026-08-05T00:00:00.000Z"),
+      },
+    ],
+  });
+
+  const result = await api.handle({
+    action: "submitCareShare",
+    requestId: "req-submit-care-share",
+    data: {
+      token: "share-token",
+      occurredAt: "2026-07-29T02:30:00.000Z",
+      values: {
+        temperature: 36.6,
+      },
+      remark: "已测量",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.shareStatus, "completed");
+  assert.equal(result.data.reminder.status, "completed");
+  assert.equal(result.data.record.recordSource, "reminder_check_in");
+  assert.equal(result.data.record.sourceReminderId, reminder._id);
+  assert.equal(healthItemStore.inspectRecords().length, 1);
 });
 
 test("同一提醒重复打卡只返回原有关联记录", async () => {

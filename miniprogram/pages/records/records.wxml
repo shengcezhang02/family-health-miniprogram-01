@@ -1,4 +1,4 @@
-<view class="records-shell">
+<view class="records-shell {{displaySizeClass}}">
   <view class="records-header">
     <view class="records-header__eyebrow">RECORDS · {{familyName}}</view>
     <view class="records-header__row">
@@ -81,7 +81,7 @@
             <view class="dashboard-card__title">{{card.title}}</view>
             <view class="dashboard-card__open">›</view>
           </view>
-          <view class="dashboard-card__filter">{{card.filterLabel}}</view>
+          <view class="dashboard-card__filter">当前显示：{{card.filterLabel}}</view>
         </view>
 
         <view class="dashboard-card__quick-filters">
@@ -93,8 +93,8 @@
           >
             <view class="quick-filter quick-filter--member">
               <text class="quick-filter__icon">人</text>
-              <text>成员</text>
-              <text class="quick-filter__chevron">⌄</text>
+              <text class="quick-filter__value">{{card.filterControls.memberLabel}}</text>
+              <text class="quick-filter__chevron">选择 ›</text>
             </view>
           </picker>
           <picker
@@ -106,8 +106,8 @@
           >
             <view class="quick-filter quick-filter--range">
               <text class="quick-filter__icon">期</text>
-              <text>范围</text>
-              <text class="quick-filter__chevron">⌄</text>
+              <text class="quick-filter__value">{{card.filterControls.rangeLabel}}</text>
+              <text class="quick-filter__chevron">选择 ›</text>
             </view>
           </picker>
         </view>

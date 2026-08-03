@@ -30,6 +30,7 @@ const CACHEABLE_READS = new Set([
 const READ_ONLY_ACTIONS = new Set([
   ...CACHEABLE_READS,
   "family-api:resolveInvite",
+  "share-api:resolveCareShare",
 ]);
 
 App({
@@ -151,6 +152,18 @@ App({
   async callHealthItemApi(action, data, requestId, options) {
     return this._callApi(
       "health-item-api",
+      action,
+      data,
+      requestId,
+      options,
+    );
+  },
+
+  async callShareApi(action, data, requestId, options) {
+    const functionName =
+      action === "submitCareShare" ? "health-item-api" : "share-api";
+    return this._callApi(
+      functionName,
       action,
       data,
       requestId,

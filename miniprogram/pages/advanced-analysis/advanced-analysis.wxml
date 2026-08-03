@@ -1,4 +1,4 @@
-<view class="analysis-shell">
+<view class="analysis-shell {{displaySizeClass}}">
   <view class="analysis-header">
     <view class="analysis-header__eyebrow">INSIGHTS · {{familyName || "当前家庭"}}</view>
     <view class="analysis-header__title">进阶分析</view>

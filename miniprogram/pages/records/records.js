@@ -18,6 +18,9 @@ const {
 const {
   syncMainNavigationSelection,
 } = require("../../services/main-navigation");
+const {
+  createDisplayPreference,
+} = require("../../services/display-preference");
 
 const TIME_RANGE_OPTIONS = [
   { value: "7d", label: "近7天" },
@@ -30,6 +33,10 @@ const currentFamilyPreference = createCurrentFamilyPreference({
   get: (key) => wx.getStorageSync(key),
   set: (key, value) => wx.setStorageSync(key, value),
   remove: (key) => wx.removeStorageSync(key),
+});
+const displayPreference = createDisplayPreference({
+  get: (key) => wx.getStorageSync(key),
+  set: (key, value) => wx.setStorageSync(key, value),
 });
 
 const dashboardCardStore = createDashboardCardStore({
@@ -237,6 +244,7 @@ Page({
     cacheNotice: "",
     errorMessage: "",
     showGoHome: false,
+    displaySizeClass: "display-size--large",
   },
 
   onLoad() {
@@ -252,6 +260,9 @@ Page({
 
   onShow() {
     syncMainNavigationSelection(this);
+    this.setData({
+      displaySizeClass: displayPreference.read().className,
+    });
 
     if (this.data.status === "ready") {
       this.refreshLocalCards();

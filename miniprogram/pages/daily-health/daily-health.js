@@ -27,6 +27,9 @@ const {
   buildDailyControlsSummary,
   toggleDailyControls,
 } = require("../../services/daily-health-controls");
+const {
+  createDisplayPreference,
+} = require("../../services/display-preference");
 
 const DAILY_DISPLAY_MODE_KEY = "daily-health-display-mode";
 
@@ -34,6 +37,10 @@ const currentFamilyPreference = createCurrentFamilyPreference({
   get: (key) => wx.getStorageSync(key),
   set: (key, value) => wx.setStorageSync(key, value),
   remove: (key) => wx.removeStorageSync(key),
+});
+const displayPreference = createDisplayPreference({
+  get: (key) => wx.getStorageSync(key),
+  set: (key, value) => wx.setStorageSync(key, value),
 });
 
 const loader = createDailyHealthPageLoader({
@@ -220,6 +227,7 @@ Page({
     cacheNotice: "",
     errorMessage: "",
     showGoFamily: false,
+    displaySizeClass: "display-size--large",
   },
 
   onLoad() {
@@ -256,6 +264,9 @@ Page({
 
   onShow() {
     syncMainNavigationSelection(this);
+    this.setData({
+      displaySizeClass: displayPreference.read().className,
+    });
     if (this.data.date) {
       this.loadDailyHealth({
         silent: this.data.status === "ready",

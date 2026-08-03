@@ -15,7 +15,9 @@
     "pages/dashboard-cards/dashboard-cards",
     "pages/dashboard-card-editor/dashboard-card-editor",
     "pages/analysis-detail/analysis-detail",
-    "pages/analysis-data/analysis-data"
+    "pages/analysis-data/analysis-data",
+    "pages/care-share-editor/care-share-editor",
+    "pages/care-share/care-share"
   ],
   "tabBar": {
     "custom": true,

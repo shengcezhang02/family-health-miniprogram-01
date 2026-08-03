@@ -33,15 +33,39 @@ const MAIN_NAVIGATION_ITEMS = [
 const QUICK_ADD_ACTIONS = [
   {
     id: "health-item",
-    label: "事项",
+    label: "记录",
+    icon: "/assets/icons/quick-record.svg",
+    tone: "record",
+  },
+  {
+    id: "blood-pressure",
+    label: "血压",
+    icon: "/assets/icons/quick-blood-pressure.svg",
+    tone: "blood-pressure",
+  },
+  {
+    id: "blood-glucose",
+    label: "血糖",
+    icon: "/assets/icons/quick-blood-glucose.svg",
+    tone: "blood-glucose",
+  },
+  {
+    id: "medication",
+    label: "用药",
+    icon: "/assets/icons/quick-medication.svg",
+    tone: "medication",
   },
   {
     id: "care-share",
     label: "分享",
+    icon: "/assets/icons/quick-share.svg",
+    tone: "share",
   },
   {
     id: "health-template",
     label: "模板",
+    icon: "/assets/icons/quick-template.svg",
+    tone: "template",
   },
 ];
 
@@ -93,6 +117,33 @@ function getNextQuickAddVisibility(isOpen) {
   return !isOpen;
 }
 
+function getQuickAddRoute(actionId, familyId) {
+  const encodedFamilyId = encodeURIComponent(familyId || "");
+  const systemTemplateIds = {
+    "blood-pressure": "sys_blood_pressure",
+    "blood-glucose": "sys_blood_glucose",
+    medication: "sys_medication",
+  };
+
+  if (actionId === "health-item") {
+    return `/pages/record-editor/record-editor?familyId=${encodedFamilyId}&from=quick-add`;
+  }
+
+  if (systemTemplateIds[actionId]) {
+    return `/pages/record-editor/record-editor?familyId=${encodedFamilyId}&templateId=${systemTemplateIds[actionId]}`;
+  }
+
+  if (actionId === "care-share") {
+    return `/pages/care-share-editor/care-share-editor?familyId=${encodedFamilyId}`;
+  }
+
+  if (actionId === "health-template") {
+    return `/pages/templates/templates?familyId=${encodedFamilyId}&mode=create`;
+  }
+
+  return "";
+}
+
 function syncMainNavigationSelection(page) {
   const selected = getSelectedNavigationIndex(page.route || "");
   const tabBar = page.getTabBar?.();
@@ -108,6 +159,7 @@ module.exports = {
   getAdvancedAnalysisEntries,
   getMainNavigationItems,
   getNextQuickAddVisibility,
+  getQuickAddRoute,
   getQuickAddActions,
   getSelectedNavigationIndex,
   syncMainNavigationSelection,

@@ -1,0 +1,173 @@
+.share-editor-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 46rpx 32rpx 90rpx;
+  background: #f6f3ee;
+}
+
+.page-header__eyebrow {
+  color: #2e6f68;
+  font-size: 23rpx;
+  font-weight: 700;
+}
+
+.page-header__title {
+  margin-top: 12rpx;
+  color: #202825;
+  font-size: 48rpx;
+  font-weight: 760;
+}
+
+.page-header__description {
+  margin-top: 14rpx;
+  color: #66716d;
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.state-card,
+.form-card,
+.share-ready-card {
+  margin-top: 28rpx;
+  padding: 28rpx;
+  border: 1rpx solid #e3ddd4;
+  border-radius: 16rpx;
+  background: #fff;
+}
+
+.state-card {
+  color: #66716d;
+  text-align: center;
+}
+
+.state-card--error,
+.feedback {
+  color: #a94f48;
+}
+
+.form-card__title,
+.share-ready-card__title {
+  color: #202825;
+  font-size: 30rpx;
+  font-weight: 750;
+}
+
+.field-group {
+  margin-top: 26rpx;
+}
+
+.field-label {
+  margin-bottom: 10rpx;
+  color: #66716d;
+  font-size: 23rpx;
+  font-weight: 650;
+}
+
+.picker-value,
+.remark-input {
+  width: 100%;
+  min-height: 82rpx;
+  box-sizing: border-box;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #d8d2c9;
+  border-radius: 10rpx;
+  color: #26312d;
+  font-size: 27rpx;
+  background: #fbfaf8;
+}
+
+.picker-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.picker-arrow {
+  color: #2e6f68;
+  font-size: 30rpx;
+}
+
+.style-options {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.style-option {
+  width: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 22rpx 10rpx;
+  border: 3rpx solid transparent;
+  border-radius: 12rpx;
+  line-height: 1.25;
+}
+
+.style-option::after,
+.primary-button::after,
+.secondary-button::after {
+  border: 0;
+}
+
+.style-option--warm-green {
+  color: #1f5e52;
+  background: #dcece5;
+}
+
+.style-option--sunset {
+  color: #8d4638;
+  background: #f3dfd6;
+}
+
+.style-option--clear-blue {
+  color: #315f78;
+  background: #dce8ef;
+}
+
+.style-option--selected {
+  border-color: currentColor;
+}
+
+.style-option__name {
+  font-size: 25rpx;
+  font-weight: 750;
+}
+
+.style-option__description {
+  margin-top: 5rpx;
+  font-size: 19rpx;
+}
+
+.feedback {
+  margin-top: 24rpx;
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.primary-button,
+.secondary-button {
+  margin-top: 26rpx;
+  border: 0;
+  border-radius: 12rpx;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.primary-button {
+  color: #fff;
+  background: #2e6f68;
+}
+
+.secondary-button {
+  color: #2e6f68;
+  background: #e4eeea;
+}
+
+.share-ready-card__description {
+  margin-top: 12rpx;
+  color: #66716d;
+  font-size: 23rpx;
+  line-height: 1.6;
+}

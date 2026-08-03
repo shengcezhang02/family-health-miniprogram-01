@@ -4,11 +4,19 @@ const {
 const {
   syncMainNavigationSelection,
 } = require("../../services/main-navigation");
+const {
+  createDisplayPreference,
+  getDisplaySizeOptions,
+} = require("../../services/display-preference");
 
 const currentFamilyPreference = createCurrentFamilyPreference({
   get: (key) => wx.getStorageSync(key),
   set: (key, value) => wx.setStorageSync(key, value),
   remove: (key) => wx.removeStorageSync(key),
+});
+const displayPreference = createDisplayPreference({
+  get: (key) => wx.getStorageSync(key),
+  set: (key, value) => wx.setStorageSync(key, value),
 });
 
 Page({
@@ -22,6 +30,9 @@ Page({
     creating: false,
     families: [],
     showFamilySwitcher: false,
+    displaySize: "large",
+    displaySizeClass: "display-size--large",
+    displaySizeOptions: getDisplaySizeOptions(),
   },
 
   onLoad() {
@@ -30,10 +41,33 @@ Page({
 
   onShow() {
     syncMainNavigationSelection(this);
+    this.applyDisplayPreference();
 
     if (this.data.status === "ready") {
       this.refreshFamilyContext();
     }
+  },
+
+  applyDisplayPreference() {
+    const preference = displayPreference.read();
+    this.setData({
+      displaySize: preference.value,
+      displaySizeClass: preference.className,
+    });
+  },
+
+  onDisplaySizeChange(event) {
+    const preference = displayPreference.save(
+      event.currentTarget.dataset.value,
+    );
+    this.setData({
+      displaySize: preference.value,
+      displaySizeClass: preference.className,
+    });
+    wx.showToast({
+      title: "显示大小已调整",
+      icon: "success",
+    });
   },
 
   onRetry() {

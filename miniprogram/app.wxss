@@ -17,3 +17,27 @@ page {
 button {
   font: inherit;
 }
+
+.display-size--standard {
+  --display-body-size: 23rpx;
+  --display-meta-size: 19rpx;
+  --display-card-title-size: 29rpx;
+  --display-card-padding: 20rpx;
+  --display-row-padding: 14rpx;
+}
+
+.display-size--large {
+  --display-body-size: 27rpx;
+  --display-meta-size: 22rpx;
+  --display-card-title-size: 33rpx;
+  --display-card-padding: 26rpx;
+  --display-row-padding: 19rpx;
+}
+
+.display-size--extra-large {
+  --display-body-size: 31rpx;
+  --display-meta-size: 25rpx;
+  --display-card-title-size: 37rpx;
+  --display-card-padding: 32rpx;
+  --display-row-padding: 25rpx;
+}

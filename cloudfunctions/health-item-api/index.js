@@ -1,5 +1,5 @@
 const cloud = require("wx-server-sdk");
-const { createHash } = require("node:crypto");
+const { createHash, createHmac } = require("node:crypto");
 
 const {
   createHealthItemApi,
@@ -14,6 +14,16 @@ cloud.init({
 });
 
 const healthItemStore = createCloudHealthItemStore(cloud.database());
+const careShareHashKey =
+  process.env.CARE_SHARE_HASH_KEY ||
+  "family-health-local-care-share-key";
+
+if (!process.env.CARE_SHARE_HASH_KEY) {
+  console.warn(
+    "CARE_SHARE_HASH_KEY is not configured; using the local development key",
+  );
+}
+
 const api = createHealthItemApi({
   getCaller: async () => {
     const { OPENID: openId } = cloud.getWXContext();
@@ -41,6 +51,10 @@ const api = createHealthItemApi({
       .update(`check-in\n${reminderId}`)
       .digest("hex")
       .slice(0, 32)}`,
+  hashCareShareToken: (token) =>
+    createHmac("sha256", careShareHashKey)
+      .update(`care-share-digest-v1\n${token}`)
+      .digest("hex"),
   now: () => new Date(),
   reportError: (error) => {
     console.error("health-item-api failed", error);

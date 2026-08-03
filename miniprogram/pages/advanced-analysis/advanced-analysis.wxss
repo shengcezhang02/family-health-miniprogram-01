@@ -22,7 +22,7 @@
 .analysis-header__description {
   margin-top: 12rpx;
   color: #66716d;
-  font-size: 25rpx;
+  font-size: var(--display-body-size);
   line-height: 1.7;
 }
 
@@ -83,7 +83,7 @@
   align-items: center;
   justify-content: space-between;
   margin: 0;
-  padding: 28rpx;
+  padding: var(--display-card-padding);
   border: 1rpx solid #e2ddd5;
   border-left: 7rpx solid #4d6f8d;
   border-radius: 14rpx;
@@ -110,14 +110,14 @@
 
 .analysis-card__title {
   color: #202825;
-  font-size: 31rpx;
+  font-size: var(--display-card-title-size);
   font-weight: 700;
 }
 
 .analysis-card__description {
   margin-top: 10rpx;
   color: #66716d;
-  font-size: 24rpx;
+  font-size: var(--display-body-size);
   line-height: 1.6;
 }
 

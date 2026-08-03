@@ -5,6 +5,7 @@ function createCloudHealthItemStore(db) {
   const records = db.collection("health_records");
   const reminders = db.collection("one_time_reminders");
   const recurringRules = db.collection("recurring_rules");
+  const careShares = db.collection("care_shares");
 
   function withoutDocumentId(document) {
     const { _id, ...data } = document;
@@ -195,6 +196,10 @@ function createCloudHealthItemStore(db) {
   }
 
   return {
+    async getCareShareByTokenHash(tokenHash) {
+      return findOne(careShares, { tokenHash });
+    },
+
     async getUserByOpenId(openId) {
       return findOne(users, {
         wechatOpenId: openId,

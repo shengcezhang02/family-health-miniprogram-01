@@ -2,6 +2,7 @@ const {
   getMainNavigationItems,
   getNextQuickAddVisibility,
   getQuickAddActions,
+  getQuickAddRoute,
   getSelectedNavigationIndex,
 } = require("../services/main-navigation");
 
@@ -110,24 +111,14 @@ Component({
         return;
       }
 
-      if (action.id === "health-item") {
+      const url = getQuickAddRoute(action.id, familyId);
+
+      if (url) {
         wx.navigateTo({
-          url: `/pages/record-editor/record-editor?familyId=${familyId}&from=quick-add`,
+          url,
         });
         return;
       }
-
-      if (action.id === "health-template") {
-        wx.navigateTo({
-          url: `/pages/templates/templates?familyId=${familyId}&mode=create`,
-        });
-        return;
-      }
-
-      wx.showToast({
-        title: "关心分享将在后续里程碑开放",
-        icon: "none",
-      });
     },
   },
 });

@@ -464,6 +464,7 @@ function createHealthItemApi({
   createReminderId,
   createRuleId,
   createCheckInRecordId,
+  hashCareShareToken,
   now,
   reportError = () => {},
 } = {}) {
@@ -1213,6 +1214,104 @@ function createHealthItemApi({
         reminder: toReminderSummary(result.reminder),
         record: toRecordSummary(result.record),
         replayed: result.outcome === "replayed",
+      };
+    },
+
+    async submitCareShare(data, request) {
+      if (
+        typeof request.requestId !== "string" ||
+        !request.requestId.trim() ||
+        typeof data.token !== "string" ||
+        !data.token ||
+        typeof hashCareShareToken !== "function"
+      ) {
+        throw new ApiError(
+          "CARE_SHARE_INVALID",
+          "这份关心分享无效",
+        );
+      }
+
+      const [caller, share] = await Promise.all([
+        getCaller(),
+        healthItemStore.getCareShareByTokenHash(
+          hashCareShareToken(data.token),
+        ),
+      ]);
+
+      if (!caller) {
+        throw new ApiError(
+          "UNAUTHENTICATED",
+          "用户信息尚未初始化，请重新进入小程序",
+        );
+      }
+
+      if (!share) {
+        throw new ApiError(
+          "CARE_SHARE_INVALID",
+          "这份关心分享无效",
+        );
+      }
+
+      if (share.expiresAt.getTime() <= now().getTime()) {
+        throw new ApiError(
+          "CARE_SHARE_EXPIRED",
+          "这份关心分享已经过期",
+        );
+      }
+
+      const reminder = await healthItemStore.getReminderById(
+        share.reminderId,
+      );
+
+      if (!reminder || reminder.deletedAt) {
+        throw new ApiError(
+          "CARE_SHARE_CANCELED",
+          "该提醒已取消",
+        );
+      }
+
+      if (reminder.status === "completed") {
+        throw new ApiError(
+          "CARE_SHARE_COMPLETED",
+          "该提醒已经完成",
+        );
+      }
+
+      const [callerMembership, subjectMembership] = await Promise.all([
+        healthItemStore.getActiveMembership(share.familyId, caller._id),
+        healthItemStore.getActiveMembership(
+          share.familyId,
+          share.subjectUserId,
+        ),
+      ]);
+
+      if (!subjectMembership) {
+        throw new ApiError(
+          "CARE_SHARE_PAUSED",
+          "档案所属人已不在当前家庭，暂时不能填写",
+        );
+      }
+
+      if (!callerMembership) {
+        throw new ApiError(
+          "CARE_SHARE_ACCESS_DENIED",
+          "只有当前家庭的有效成员可以填写",
+        );
+      }
+
+      const result = await actions.checkInReminder(
+        {
+          ...data,
+          token: undefined,
+          reminderId: reminder._id,
+          expectedRevision: reminder.revision,
+        },
+        request,
+      );
+
+      return {
+        ...result,
+        shareStatus: "completed",
       };
     },
 

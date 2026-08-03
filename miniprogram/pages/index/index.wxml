@@ -1,4 +1,4 @@
-<view class="page-shell">
+<view class="page-shell {{displaySizeClass}}">
   <view class="brand">
     <view class="brand__mark">家</view>
     <view>
@@ -126,6 +126,34 @@
     <view class="family-home__title">我和家庭</view>
     <view class="family-home__description">
       管理自己的健康资料，也管理正在使用的家庭空间。
+    </view>
+
+    <view class="display-setting">
+      <view class="display-setting__heading">
+        <view>
+          <view class="display-setting__title">显示大小</view>
+          <view class="display-setting__description">
+            同时调整文字、列表条目和卡片留白
+          </view>
+        </view>
+        <view class="display-setting__current">
+          {{displaySize === "standard" ? "标准" : displaySize === "extra-large" ? "特大" : "大字"}}
+        </view>
+      </view>
+      <view class="display-setting__options">
+        <button
+          wx:for="{{displaySizeOptions}}"
+          wx:key="value"
+          id="display-size-{{item.value}}"
+          class="display-size-option {{displaySize === item.value ? 'display-size-option--selected' : ''}}"
+          data-value="{{item.value}}"
+          bindtap="onDisplaySizeChange"
+        >
+          <view class="display-size-option__sample display-size-option__sample--{{item.value}}">字</view>
+          <view class="display-size-option__label">{{item.label}}</view>
+          <view class="display-size-option__description">{{item.description}}</view>
+        </button>
+      </view>
     </view>
 
     <view class="current-space">

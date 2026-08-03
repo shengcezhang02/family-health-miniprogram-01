@@ -6,6 +6,7 @@ const {
   getQuickAddActions,
   getAdvancedAnalysisEntries,
   getNextQuickAddVisibility,
+  getQuickAddRoute,
   getSelectedNavigationIndex,
   syncMainNavigationSelection,
 } = require("../miniprogram/services/main-navigation");
@@ -105,19 +106,43 @@ test("进阶分析只展示原版文档确认的三个预设分析和数据导�
   ]);
 });
 
-test("底部加号打开原版文档定义的三个全局添加入口", () => {
+test("底部加号第一排直接展示记录、血压、血糖和用药", () => {
   assert.deepEqual(getQuickAddActions(), [
     {
       id: "health-item",
-      label: "事项",
+      label: "记录",
+      icon: "/assets/icons/quick-record.svg",
+      tone: "record",
+    },
+    {
+      id: "blood-pressure",
+      label: "血压",
+      icon: "/assets/icons/quick-blood-pressure.svg",
+      tone: "blood-pressure",
+    },
+    {
+      id: "blood-glucose",
+      label: "血糖",
+      icon: "/assets/icons/quick-blood-glucose.svg",
+      tone: "blood-glucose",
+    },
+    {
+      id: "medication",
+      label: "用药",
+      icon: "/assets/icons/quick-medication.svg",
+      tone: "medication",
     },
     {
       id: "care-share",
       label: "分享",
+      icon: "/assets/icons/quick-share.svg",
+      tone: "share",
     },
     {
       id: "health-template",
       label: "模板",
+      icon: "/assets/icons/quick-template.svg",
+      tone: "template",
     },
   ]);
 });
@@ -125,4 +150,26 @@ test("底部加号打开原版文档定义的三个全局添加入口", () => {
 test("中央添加按钮再次点击时关闭快速添加菜单", () => {
   assert.equal(getNextQuickAddVisibility(false), true);
   assert.equal(getNextQuickAddVisibility(true), false);
+});
+
+test("快速添加中的分享入口打开关心分享编辑页", () => {
+  assert.equal(
+    getQuickAddRoute("care-share", "family-1"),
+    "/pages/care-share-editor/care-share-editor?familyId=family-1",
+  );
+});
+
+test("血压、血糖和用药快捷入口直接预选对应系统项目", () => {
+  assert.equal(
+    getQuickAddRoute("blood-pressure", "family-1"),
+    "/pages/record-editor/record-editor?familyId=family-1&templateId=sys_blood_pressure",
+  );
+  assert.equal(
+    getQuickAddRoute("blood-glucose", "family-1"),
+    "/pages/record-editor/record-editor?familyId=family-1&templateId=sys_blood_glucose",
+  );
+  assert.equal(
+    getQuickAddRoute("medication", "family-1"),
+    "/pages/record-editor/record-editor?familyId=family-1&templateId=sys_medication",
+  );
 });

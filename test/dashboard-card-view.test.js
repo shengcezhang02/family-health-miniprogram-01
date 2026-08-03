@@ -3,7 +3,24 @@ const assert = require("node:assert/strict");
 
 const {
   buildDashboardCardViews,
+  buildDashboardFilterControls,
 } = require("../miniprogram/services/dashboard-card-view");
+
+test("卡片筛选按钮直接标明当前成员和时间范围", () => {
+  assert.deepEqual(
+    buildDashboardFilterControls(
+      {
+        memberIds: ["user-1"],
+        timeRange: "30d",
+      },
+      [{ id: "user-1", displayLabel: "妈妈（我）" }],
+    ),
+    {
+      memberLabel: "成员：妈妈（我）",
+      rangeLabel: "范围：近30天",
+    },
+  );
+});
 
 function createRecord({
   id,

@@ -16,12 +16,17 @@
       wx:for="{{quickAddActions}}"
       wx:key="id"
       id="quick-add-action-{{item.id}}"
-      class="quick-add-menu__item quick-add-menu__item--{{index}}"
+      class="quick-add-menu__item quick-add-menu__item--{{item.tone}}"
       data-action-id="{{item.id}}"
       bindtap="onChooseQuickAdd"
     >
       <view class="quick-add-menu__item-mark">
-        {{index === 0 ? "＋" : index === 1 ? "↗" : "◇"}}
+        <view class="quick-add-menu__item-highlight"></view>
+        <image
+          class="quick-add-menu__item-icon"
+          src="{{item.icon}}"
+          mode="aspectFit"
+        />
       </view>
       <view class="quick-add-menu__item-title">{{item.label}}</view>
     </button>

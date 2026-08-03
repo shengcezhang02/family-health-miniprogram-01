@@ -378,7 +378,7 @@
 .family-home__description {
   margin-top: 10rpx;
   color: #66716d;
-  font-size: 24rpx;
+  font-size: var(--display-body-size);
   line-height: 1.55;
 }
 
@@ -388,7 +388,7 @@
   justify-content: space-between;
   gap: 20rpx;
   margin-top: 34rpx;
-  padding: 28rpx;
+  padding: var(--display-card-padding);
   border: 1rpx solid #d8d3cb;
   border-radius: 16rpx;
   background: #ffffff;
@@ -405,7 +405,7 @@
 .current-space__name {
   margin-top: 7rpx;
   color: #202825;
-  font-size: 34rpx;
+  font-size: var(--display-card-title-size);
   font-weight: 750;
 }
 
@@ -417,7 +417,7 @@
   justify-content: space-between;
   gap: 20rpx;
   margin: 16rpx 0 0;
-  padding: 22rpx 26rpx;
+  padding: var(--display-row-padding) var(--display-card-padding);
   border: 1rpx solid #d8d3cb;
   border-radius: 12rpx;
   color: #202825;
@@ -426,14 +426,14 @@
 }
 
 .manage-family-button__title {
-  font-size: 27rpx;
+  font-size: var(--display-body-size);
   font-weight: 700;
 }
 
 .manage-family-button__description {
   margin-top: 4rpx;
   color: #66716d;
-  font-size: 21rpx;
+  font-size: var(--display-meta-size);
 }
 
 .manage-family-button__arrow {
@@ -443,4 +443,115 @@
 
 .manage-family-button::after {
   border: 0;
+}
+
+.display-setting {
+  margin-top: 28rpx;
+  padding: var(--display-card-padding);
+  border: 2rpx solid #cfded8;
+  border-radius: 16rpx;
+  background: #ffffff;
+  box-shadow: 0 8rpx 22rpx rgba(37, 45, 41, 0.05);
+}
+
+.display-setting__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.display-setting__title {
+  color: #202825;
+  font-size: var(--display-card-title-size);
+  font-weight: 750;
+}
+
+.display-setting__description {
+  margin-top: 6rpx;
+  color: #66716d;
+  font-size: var(--display-meta-size);
+}
+
+.display-setting__current {
+  flex: 0 0 auto;
+  padding: 7rpx 13rpx;
+  border-radius: 7rpx;
+  color: #ffffff;
+  font-size: var(--display-meta-size);
+  font-weight: 700;
+  background: #2e6f68;
+}
+
+.display-setting__options {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+
+.display-size-option {
+  display: flex;
+  width: 0;
+  min-width: 0;
+  min-height: 142rpx;
+  flex: 1;
+  overflow: hidden;
+  box-sizing: border-box;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0;
+  padding: 14rpx 8rpx;
+  border: 2rpx solid #ded8cf;
+  border-radius: 11rpx;
+  color: #38443f;
+  line-height: 1.25;
+  background: #faf9f6;
+}
+
+.display-size-option::after {
+  border: 0;
+}
+
+.display-size-option--selected {
+  border-color: #2e6f68;
+  color: #194f47;
+  background: #e8f1ed;
+  box-shadow: inset 0 0 0 1rpx rgba(46, 111, 104, 0.18);
+}
+
+.display-size-option__sample {
+  font-weight: 760;
+  line-height: 1;
+}
+
+.display-size-option__sample--standard {
+  font-size: 25rpx;
+}
+
+.display-size-option__sample--large {
+  font-size: 31rpx;
+}
+
+.display-size-option__sample--extra-large {
+  font-size: 37rpx;
+}
+
+.display-size-option__label {
+  margin-top: 9rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.display-size-option__description {
+  margin-top: 3rpx;
+  overflow: hidden;
+  color: #74807b;
+  font-size: 18rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.display-size-option--selected .display-size-option__description {
+  color: #52736b;
 }

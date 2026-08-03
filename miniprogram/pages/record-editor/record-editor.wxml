@@ -432,6 +432,16 @@
     </button>
 
     <button
+      wx:if="{{mode === 'reminder' && reminderId}}"
+      id="record-care-share-button"
+      class="secondary-button"
+      disabled="{{saving || formLocked}}"
+      bindtap="onOpenCareShare"
+    >
+      分享给家人填写
+    </button>
+
+    <button
       id="record-save-button"
       class="primary-button"
       loading="{{saving}}"

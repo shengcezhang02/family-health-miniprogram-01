@@ -1,4 +1,4 @@
-<view class="daily-shell">
+<view class="daily-shell {{displaySizeClass}}">
   <view class="daily-header">
     <view class="daily-header__eyebrow">DAILY · {{familyName || "家庭健康"}}</view>
     <view class="daily-header__title">每日健康</view>

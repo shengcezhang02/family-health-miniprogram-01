@@ -70,6 +70,18 @@ function buildFilterLabel(card, members) {
   }`;
 }
 
+function buildDashboardFilterControls(card, members) {
+  const [memberLabel, rangeLabel] = buildFilterLabel(
+    card,
+    members,
+  ).split(" · ");
+
+  return {
+    memberLabel: `成员：${memberLabel}`,
+    rangeLabel: `范围：${rangeLabel}`,
+  };
+}
+
 function filterRecords(records, card, now) {
   return records
     .filter((record) =>
@@ -275,6 +287,7 @@ function buildDashboardCardViews({
       ...card,
       typeLabel: TYPE_LABELS[card.type] || "健康卡片",
       filterLabel: buildFilterLabel(card, members),
+      filterControls: buildDashboardFilterControls(card, members),
     };
 
     if (card.type === "record_list") {
@@ -349,4 +362,5 @@ function buildDashboardCardViews({
 
 module.exports = {
   buildDashboardCardViews,
+  buildDashboardFilterControls,
 };

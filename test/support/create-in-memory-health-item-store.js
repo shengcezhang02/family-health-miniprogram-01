@@ -5,6 +5,7 @@ function createInMemoryHealthItemStore({
   records = [],
   reminders = [],
   recurringRules = [],
+  careShares = [],
 } = {}) {
   const usersByOpenId = new Map(
     users.map((user) => [user.wechatOpenId, structuredClone(user)]),
@@ -34,6 +35,12 @@ function createInMemoryHealthItemStore({
     recurringRules.map((rule) => [
       rule._id,
       structuredClone(rule),
+    ]),
+  );
+  const careSharesByTokenHash = new Map(
+    careShares.map((share) => [
+      share.tokenHash,
+      structuredClone(share),
     ]),
   );
 
@@ -154,6 +161,10 @@ function createInMemoryHealthItemStore({
   }
 
   return {
+    async getCareShareByTokenHash(tokenHash) {
+      return structuredClone(careSharesByTokenHash.get(tokenHash) ?? null);
+    },
+
     async getUserByOpenId(openId) {
       return structuredClone(usersByOpenId.get(openId) ?? null);
     },

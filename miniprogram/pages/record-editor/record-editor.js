@@ -629,6 +629,18 @@ Page({
     });
   },
 
+  onOpenCareShare() {
+    if (!this.data.reminderId || !this.data.familyId) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/care-share-editor/care-share-editor?familyId=${encodeURIComponent(
+        this.data.familyId,
+      )}&reminderId=${encodeURIComponent(this.data.reminderId)}`,
+    });
+  },
+
   async loadEditor({ silent = false } = {}) {
     if (!this.data.familyId) {
       this.setData({

@@ -1,0 +1,103 @@
+<view class="care-share-shell care-share-shell--{{share.cardStyleCode || 'neutral'}}">
+  <view wx:if="{{status === 'loading'}}" class="state-card">
+    <view class="state-card__title">正在打开这份关心</view>
+    <view class="state-card__description">正在确认分享状态与家庭权限…</view>
+  </view>
+
+  <view wx:elif="{{status !== 'ready'}}" class="state-card">
+    <view class="state-card__title">{{stateTitle || "暂时无法打开"}}</view>
+    <view class="state-card__description">
+      {{errorMessage || stateDescription}}
+    </view>
+    <button wx:if="{{status === 'error'}}" class="secondary-button" bindtap="onRetry">
+      重新加载
+    </button>
+  </view>
+
+  <view wx:else>
+    <view class="care-card">
+      <view class="care-card__eyebrow">来自 {{share.displaySnapshot.familyName}}</view>
+      <view class="care-card__title">
+        {{share.displaySnapshot.subjectDisplayName}} · {{share.displaySnapshot.templateName}}
+      </view>
+      <view wx:if="{{share.form.remark}}" class="care-card__message">
+        {{share.form.remark}}
+      </view>
+      <view class="care-card__meta">填写后会直接完成这条提醒</view>
+    </view>
+
+    <view class="form-card">
+      <view
+        wx:for="{{share.form.fields}}"
+        wx:key="key"
+        class="field-group"
+      >
+        <view class="field-label">
+          {{item.label}}{{item.required ? "" : "（选填）"}}
+        </view>
+        <view class="input-with-unit">
+          <input
+            wx:if="{{item.type === 'number'}}"
+            id="care-share-field-{{item.key}}"
+            class="field-input"
+            type="digit"
+            value="{{fieldValues[item.key]}}"
+            disabled="{{saving}}"
+            data-field-key="{{item.key}}"
+            bindinput="onFieldInput"
+          />
+          <picker
+            wx:elif="{{item.type === 'single_choice'}}"
+            id="care-share-field-{{item.key}}"
+            range="{{item.options}}"
+            range-key="label"
+            value="{{fieldChoiceIndexes[item.key] || 0}}"
+            disabled="{{saving}}"
+            data-field-key="{{item.key}}"
+            bindchange="onChoiceChange"
+          >
+            <view class="picker-value">
+              <text>{{selectedChoiceLabels[item.key] || "请选择"}}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+          <input
+            wx:else
+            id="care-share-field-{{item.key}}"
+            class="field-input"
+            type="text"
+            maxlength="100"
+            value="{{fieldValues[item.key]}}"
+            disabled="{{saving}}"
+            data-field-key="{{item.key}}"
+            bindinput="onFieldInput"
+          />
+          <view wx:if="{{item.unit}}" class="field-unit">{{item.unit}}</view>
+        </view>
+      </view>
+
+      <view class="field-group">
+        <view class="field-label">本次记录备注（选填）</view>
+        <textarea
+          class="remark-input"
+          value="{{remark}}"
+          maxlength="500"
+          auto-height
+          disabled="{{saving}}"
+          bindinput="onRemarkInput"
+        />
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="feedback">{{errorMessage}}</view>
+    <button
+      id="care-share-submit-button"
+      class="primary-button"
+      loading="{{saving}}"
+      disabled="{{saving}}"
+      bindtap="onSubmit"
+    >
+      填好并完成提醒
+    </button>
+  </view>
+</view>

@@ -31,7 +31,7 @@
 .daily-header__description {
   margin-top: 8rpx;
   color: #66716d;
-  font-size: 24rpx;
+  font-size: var(--display-body-size);
   line-height: 1.55;
 }
 
@@ -170,7 +170,7 @@
 
 .health-card {
   margin-top: 12rpx;
-  padding: 18rpx 20rpx;
+  padding: var(--display-row-padding) var(--display-card-padding);
   border: 1rpx solid #e2ddd5;
   border-radius: 14rpx;
   background: #ffffff;
@@ -185,7 +185,7 @@
 .section__title,
 .health-card__title {
   color: #202825;
-  font-size: 30rpx;
+  font-size: var(--display-card-title-size);
   font-weight: 700;
 }
 
@@ -425,7 +425,7 @@
 .field-value,
 .health-card__remark {
   color: #66716d;
-  font-size: 23rpx;
+  font-size: var(--display-body-size);
 }
 
 .health-card__subject {
@@ -484,7 +484,7 @@
 
 .field-value--strong {
   color: #202825;
-  font-size: 27rpx;
+  font-size: var(--display-card-title-size);
   font-weight: 750;
 }
 

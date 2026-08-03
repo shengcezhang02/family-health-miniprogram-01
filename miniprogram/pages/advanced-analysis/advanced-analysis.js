@@ -6,11 +6,18 @@ const {
   getAdvancedAnalysisEntries,
   syncMainNavigationSelection,
 } = require("../../services/main-navigation");
+const {
+  createDisplayPreference,
+} = require("../../services/display-preference");
 
 const currentFamilyPreference = createCurrentFamilyPreference({
   get: (key) => wx.getStorageSync(key),
   set: (key, value) => wx.setStorageSync(key, value),
   remove: (key) => wx.removeStorageSync(key),
+});
+const displayPreference = createDisplayPreference({
+  get: (key) => wx.getStorageSync(key),
+  set: (key, value) => wx.setStorageSync(key, value),
 });
 
 Page({
@@ -19,10 +26,14 @@ Page({
     familyName: "",
     entries: getAdvancedAnalysisEntries(),
     errorMessage: "",
+    displaySizeClass: "display-size--large",
   },
 
   onShow() {
     syncMainNavigationSelection(this);
+    this.setData({
+      displaySizeClass: displayPreference.read().className,
+    });
     this.loadFamilyContext({
       silent: this.data.status === "ready",
     });
