@@ -566,7 +566,7 @@
 
 .health-card__compact-row {
   margin-top: 9rpx;
-  min-height: 70rpx;
+  min-height: 84rpx;
 }
 
 .record-compact-row .health-card__identity {
@@ -607,18 +607,22 @@
 }
 
 .reminder-card .card-actions {
-  width: 74rpx;
-  min-width: 74rpx;
+  width: 84rpx;
+  min-width: 84rpx;
 }
 
 .card-button {
-  width: 74rpx;
-  min-width: 74rpx;
-  height: 70rpx;
+  display: flex;
+  width: 84rpx;
+  min-width: 84rpx;
+  height: 84rpx;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
   padding: 0;
-  border-radius: 17rpx;
+  border-radius: 50%;
   font-size: 22rpx;
-  line-height: 70rpx;
+  line-height: 1;
 }
 
 .linked-record {
