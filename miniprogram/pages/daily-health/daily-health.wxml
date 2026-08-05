@@ -183,7 +183,8 @@
         <view
           wx:for="{{timelineItems}}"
           wx:key="id"
-          class="health-card {{item.kind === 'reminder' ? 'reminder-card' : ''}}"
+          class="health-card health-card--{{item.kind === 'reminder' ? item.reminder.tone : item.record.tone}} {{item.kind === 'reminder' ? 'reminder-card' : ''}}"
+          style="{{item.kind === 'reminder' ? item.reminder.surfaceStyle : item.record.surfaceStyle}}"
         >
           <block wx:if="{{item.kind === 'reminder'}}">
             <view
@@ -194,19 +195,17 @@
             >
             <view class="health-card__top">
               <view class="health-card__identity">
-                <view class="health-card__title">{{item.reminder.templateNameSnapshot}}</view>
-                <view class="health-card__subject">· {{item.reminder.displaySubjectName}}</view>
+                <view class="health-card__title" style="{{item.reminder.labelStyle}}">{{item.reminder.templateNameSnapshot}}</view>
               </view>
               <view class="status-badge status-badge--{{item.reminder.status}}">
                 {{item.reminder.displayStatus}}
               </view>
             </view>
+            <view class="health-card__subject">提醒对象：{{item.reminder.displaySubjectName}}</view>
             <view class="health-card__compact-row">
-              <view
-                wx:if="{{item.reminder.displayNotificationTimes}}"
-                class="health-card__notification"
-              >
-                通知 {{item.reminder.displayNotificationTimes}}
+              <view class="health-card__notification">
+                <view>计划时间 {{item.reminder.displayPlannedAt}}</view>
+                <view wx:if="{{item.reminder.displayNotificationTimes}}">通知时间 {{item.reminder.displayNotificationTimes}}</view>
               </view>
               <view class="card-actions">
                 <button
@@ -219,6 +218,9 @@
                   打卡
                 </button>
               </view>
+            </view>
+            <view class="health-card__meta">
+              创建人：{{item.reminder.displayCreatedByName}} · 创建于：{{item.reminder.displayCreatedAt}}
             </view>
             <view wx:if="{{item.reminder.remark}}" class="health-card__remark">
               {{item.reminder.remark}}
@@ -243,7 +245,7 @@
                     {{field.value}}
                   </view>
                 </view>
-                <view class="linked-record__time">{{linkedRecord.displayOccurredAt}}</view>
+                <view class="linked-record__time">{{linkedRecord.displayOccurredDateTime}}</view>
                 <view class="linked-record__open">›</view>
               </view>
               <view wx:if="{{linkedRecord.remark}}" class="health-card__remark">
@@ -259,8 +261,7 @@
             >
               <view class="record-compact-row">
                 <view class="health-card__identity">
-                  <view class="health-card__title">{{item.record.templateNameSnapshot}}</view>
-                  <view class="health-card__subject">· {{item.record.displaySubjectName}}</view>
+                  <view class="health-card__title" style="{{item.record.labelStyle}}">{{item.record.templateNameSnapshot}}</view>
                 </view>
                 <view class="field-list field-list--record">
                   <view
@@ -272,8 +273,14 @@
                     {{field.value}}
                   </view>
                 </view>
-                <view class="health-card__time">{{item.record.displayOccurredAt}}</view>
                 <view class="record-compact-row__open">›</view>
+              </view>
+              <view class="record-card__details">
+                <view class="health-card__subject">数据属于：{{item.record.displaySubjectName}}</view>
+                <view class="health-card__time">记录时间：{{item.record.displayOccurredAt}}</view>
+              </view>
+              <view class="health-card__meta">
+                录入人：{{item.record.displayCreatedByName}} · 创建于：{{item.record.displayCreatedAt}}
               </view>
               <view wx:if="{{item.record.remark}}" class="health-card__remark">
                 {{item.record.remark}}
@@ -293,26 +300,25 @@
         <view
           wx:for="{{reminders}}"
           wx:key="id"
-          class="health-card reminder-card"
+          class="health-card health-card--{{item.tone}} reminder-card"
+          style="{{item.surfaceStyle}}"
           data-reminder-id="{{item.id}}"
           data-linked-record-id="{{item.linkedRecordId}}"
           bindtap="onOpenReminderCard"
         >
           <view class="health-card__top">
             <view class="health-card__identity">
-              <view class="health-card__title">{{item.templateNameSnapshot}}</view>
-              <view class="health-card__subject">· {{item.displaySubjectName}}</view>
+              <view class="health-card__title" style="{{item.labelStyle}}">{{item.templateNameSnapshot}}</view>
             </view>
             <view class="status-badge status-badge--{{item.status}}">
               {{item.displayStatus}}
             </view>
           </view>
+          <view class="health-card__subject">提醒对象：{{item.displaySubjectName}}</view>
           <view class="health-card__compact-row">
-            <view
-              wx:if="{{item.displayNotificationTimes}}"
-              class="health-card__notification"
-            >
-              通知 {{item.displayNotificationTimes}}
+            <view class="health-card__notification">
+              <view>计划时间 {{item.displayPlannedAt}}</view>
+              <view wx:if="{{item.displayNotificationTimes}}">通知时间 {{item.displayNotificationTimes}}</view>
             </view>
             <view class="card-actions">
               <button
@@ -327,8 +333,33 @@
               </button>
             </view>
           </view>
+          <view class="health-card__meta">
+            创建人：{{item.displayCreatedByName}} · 创建于：{{item.displayCreatedAt}}
+          </view>
           <view wx:if="{{item.remark}}" class="health-card__remark">
             {{item.remark}}
+          </view>
+          <view
+            wx:for="{{item.linkedRecords}}"
+            wx:for-item="linkedRecord"
+            wx:key="id"
+            class="linked-record"
+            data-record-id="{{linkedRecord.id}}"
+            catchtap="onOpenRecord"
+          >
+            <view class="linked-record__main">
+              <view class="linked-record__label">打卡记录</view>
+              <view class="field-list">
+                <view
+                  wx:for="{{linkedRecord.displayFields}}"
+                  wx:for-item="field"
+                  wx:key="key"
+                  class="field-value field-value--strong"
+                >{{field.value}}</view>
+              </view>
+              <view class="linked-record__time">{{linkedRecord.displayOccurredDateTime}}</view>
+              <view class="linked-record__open">›</view>
+            </view>
           </view>
         </view>
       </view>
@@ -341,14 +372,14 @@
         <view
           wx:for="{{records}}"
           wx:key="id"
-          class="health-card"
+          class="health-card health-card--{{item.tone}}"
+          style="{{item.surfaceStyle}}"
           data-record-id="{{item.id}}"
           bindtap="onOpenRecord"
         >
           <view class="record-compact-row">
             <view class="health-card__identity">
-              <view class="health-card__title">{{item.templateNameSnapshot}}</view>
-              <view class="health-card__subject">· {{item.displaySubjectName}}</view>
+              <view class="health-card__title" style="{{item.labelStyle}}">{{item.templateNameSnapshot}}</view>
             </view>
             <view class="field-list field-list--record">
               <view
@@ -360,8 +391,14 @@
                 {{field.value}}
               </view>
             </view>
-            <view class="health-card__time">{{item.displayOccurredAt}}</view>
             <view class="record-compact-row__open">›</view>
+          </view>
+          <view class="record-card__details">
+            <view class="health-card__subject">数据属于：{{item.displaySubjectName}}</view>
+            <view class="health-card__time">记录时间：{{item.displayOccurredAt}}</view>
+          </view>
+          <view class="health-card__meta">
+            录入人：{{item.displayCreatedByName}} · 创建于：{{item.displayCreatedAt}}
           </view>
           <view wx:if="{{item.remark}}" class="health-card__remark">
             {{item.remark}}
@@ -378,14 +415,15 @@
       <view
         wx:for="{{recurringRules}}"
         wx:key="id"
-        class="health-card rule-card"
+        class="health-card health-card--{{item.tone}} rule-card"
+        style="{{item.surfaceStyle}}"
         data-rule-id="{{item.id}}"
         bindtap="onOpenRule"
       >
         <view class="health-card__top">
           <view>
-            <view class="health-card__title">{{item.templateNameSnapshot}}</view>
-            <view class="health-card__subject">{{item.displaySubjectName}}</view>
+            <view class="health-card__title" style="{{item.labelStyle}}">{{item.templateNameSnapshot}}</view>
+            <view class="health-card__subject">提醒对象：{{item.displaySubjectName}} · 创建人：{{item.displayCreatedByName}}</view>
           </view>
           <view class="rule-status rule-status--{{item.status}}">
             {{item.displayStatus}}

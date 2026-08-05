@@ -13,6 +13,7 @@ function matchesCommonFilters(item, filters) {
 
 function buildDailyHealthView({
   records = [],
+  linkedRecords = [],
   reminders = [],
   recurringRules = [],
   filters = {},
@@ -48,8 +49,20 @@ function buildDailyHealthView({
     filteredReminders.map((reminder) => reminder.id),
   );
 
-  if (normalizedFilters.itemType === "all") {
-    for (const record of filteredRecords) {
+  const linkableRecords = [
+    ...new Map(
+      filteredRecords
+        .concat(
+          linkedRecords.filter((record) =>
+            matchesCommonFilters(record, normalizedFilters),
+          ),
+        )
+        .map((record) => [record.id, record]),
+    ).values(),
+  ];
+
+  if (visibleReminderIds.size > 0) {
+    for (const record of linkableRecords) {
       if (
         !record.sourceReminderId ||
         !visibleReminderIds.has(record.sourceReminderId)
@@ -96,7 +109,10 @@ function buildDailyHealthView({
 
   return {
     records: filteredRecords,
-    reminders: filteredReminders,
+    reminders: filteredReminders.map((reminder) => ({
+      ...reminder,
+      linkedRecords: recordsByReminderId.get(reminder.id) || [],
+    })),
     recurringRules: filteredRules,
     timelineItems,
   };

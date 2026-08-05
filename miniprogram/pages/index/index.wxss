@@ -489,6 +489,65 @@
   margin-top: 22rpx;
 }
 
+.name-setting {
+  margin-top: 16rpx;
+  padding: var(--display-card-padding);
+  border: 1rpx solid #d8d3cb;
+  border-radius: 14rpx;
+  background: #ffffff;
+}
+
+.name-setting__title {
+  color: #202825;
+  font-size: var(--display-card-title-size);
+  font-weight: 750;
+}
+
+.name-setting__description {
+  margin-top: 5rpx;
+  color: #66716d;
+  font-size: var(--display-meta-size);
+}
+
+.name-setting__form {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.name-setting__input {
+  height: 78rpx;
+  min-width: 0;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0 18rpx;
+  border: 2rpx solid #cfded8;
+  border-radius: 10rpx;
+  color: #202825;
+  font-size: var(--display-body-size);
+  background: #faf9f6;
+}
+
+.name-setting__button {
+  width: 132rpx;
+  height: 78rpx;
+  flex: 0 0 132rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10rpx;
+  color: #ffffff;
+  font-size: var(--display-body-size);
+  font-weight: 700;
+  line-height: 78rpx;
+  background: #2e6f68;
+}
+
+.name-setting__button::after {
+  border: 0;
+}
+
 .display-size-option {
   display: flex;
   width: 0;

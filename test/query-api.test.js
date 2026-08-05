@@ -12,9 +12,11 @@ function createRecord({
   id,
   familyId = "family-1",
   subjectUserId = "user-1",
+  createdByUserId = "user-1",
   occurredAt,
   deletedAt,
   remark,
+  sourceReminderId,
 }) {
   return {
     _id: id,
@@ -37,12 +39,13 @@ function createRecord({
     ...(remark ? { remark } : {}),
     occurredAt: new Date(occurredAt),
     recordSource: "manual",
-    createdByUserId: "user-1",
+    createdByUserId,
     updatedByUserId: "user-1",
     revision: 1,
     createdAt: new Date(occurredAt),
     updatedAt: new Date(occurredAt),
     originRecordId: id,
+    ...(sourceReminderId ? { sourceReminderId } : {}),
     ...(deletedAt ? { deletedAt: new Date(deletedAt) } : {}),
   };
 }
@@ -51,9 +54,12 @@ function createReminder({
   id,
   familyId = "family-1",
   subjectUserId = "user-1",
+  createdByUserId = "user-1",
   plannedAt,
   notificationTimes = [],
   status = "pending",
+  linkedRecordId,
+  completedAt,
 }) {
   return {
     _id: id,
@@ -79,11 +85,17 @@ function createReminder({
     status,
     creationSource: "manual",
     dedupKey: `item:${id}`,
-    createdByUserId: "user-1",
+    createdByUserId,
     updatedByUserId: "user-1",
     revision: 1,
     createdAt: new Date("2026-07-29T00:00:00.000Z"),
     updatedAt: new Date("2026-07-29T00:00:00.000Z"),
+    ...(linkedRecordId
+      ? {
+          linkedRecordId,
+          completedAt: new Date(completedAt),
+        }
+      : {}),
   };
 }
 
@@ -196,11 +208,13 @@ test("每日健康返回有效成员和选中日期适用的周期规则", async
       id: "user-1",
       displayName: "用户一",
       avatarUrl: null,
+      isSelf: true,
     },
     {
       id: "user-2",
       displayName: "用户二",
       avatarUrl: null,
+      isSelf: false,
     },
   ]);
   assert.deepEqual(
@@ -308,6 +322,146 @@ test("每日健康按中国标准时间返回当天记录和提醒并计算提�
     "2026-07-29T02:30:00.000Z",
     "2026-07-29T02:45:00.000Z",
   ]);
+});
+
+test("补打卡记录即使发生在后来日期也随原提醒返回", async () => {
+  const caller = {
+    _id: "user-1",
+    displayName: "妈妈",
+  };
+  const reminderId = "august-2-reminder";
+  const recordId = "august-5-check-in";
+  const queryStore = createInMemoryQueryStore({
+    users: [caller],
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: caller._id,
+        status: "active",
+      },
+    ],
+    records: [
+      createRecord({
+        id: recordId,
+        occurredAt: "2026-08-05T02:04:00.000Z",
+        sourceReminderId: reminderId,
+      }),
+    ],
+    reminders: [
+      createReminder({
+        id: reminderId,
+        plannedAt: "2026-08-02T00:00:00.000Z",
+        status: "completed",
+        linkedRecordId: recordId,
+        completedAt: "2026-08-05T02:04:56.000Z",
+      }),
+    ],
+  });
+  const api = createQueryApi({
+    getCaller: async () => structuredClone(caller),
+    queryStore,
+    now: () => new Date("2026-08-05T02:05:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "getDailyHealth",
+    data: {
+      familyId: "family-1",
+      date: "2026-08-02",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.records, []);
+  assert.deepEqual(
+    result.data.linkedRecords.map((record) => record.id),
+    [recordId],
+  );
+  assert.equal(
+    result.data.linkedRecords[0].sourceReminderId,
+    reminderId,
+  );
+});
+
+test("每日健康明确返回数据所属人、创建人和不同用途的时间", async () => {
+  const caller = {
+    _id: "user-1",
+    displayName: "妈妈",
+  };
+  const creator = {
+    _id: "user-2",
+    displayName: "女儿",
+  };
+  const queryStore = createInMemoryQueryStore({
+    users: [caller, creator],
+    memberships: [
+      {
+        familyId: "family-1",
+        userId: caller._id,
+        status: "active",
+      },
+      {
+        familyId: "family-1",
+        userId: creator._id,
+        status: "active",
+      },
+    ],
+    records: [
+      createRecord({
+        id: "record-by-daughter",
+        subjectUserId: caller._id,
+        createdByUserId: creator._id,
+        occurredAt: "2026-07-29T01:30:00.000Z",
+      }),
+    ],
+    reminders: [
+      createReminder({
+        id: "reminder-by-daughter",
+        subjectUserId: caller._id,
+        createdByUserId: creator._id,
+        plannedAt: "2026-07-29T02:00:00.000Z",
+        notificationTimes: ["2026-07-29T01:50:00.000Z"],
+      }),
+    ],
+  });
+  const api = createQueryApi({
+    getCaller: async () => structuredClone(caller),
+    queryStore,
+    now: () => new Date("2026-07-29T00:00:00.000Z"),
+  });
+
+  const result = await api.handle({
+    action: "getDailyHealth",
+    data: {
+      familyId: "family-1",
+      date: "2026-07-29",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.records[0].subject, {
+    id: "user-1",
+    displayName: "妈妈",
+    avatarUrl: null,
+  });
+  assert.deepEqual(result.data.records[0].createdBy, {
+    id: "user-2",
+    displayName: "女儿",
+    avatarUrl: null,
+  });
+  assert.equal(
+    result.data.records[0].createdAt,
+    "2026-07-29T01:30:00.000Z",
+  );
+  assert.deepEqual(result.data.reminders[0].createdBy, {
+    id: "user-2",
+    displayName: "女儿",
+    avatarUrl: null,
+  });
+  assert.equal(
+    result.data.reminders[0].createdAt,
+    "2026-07-29T00:00:00.000Z",
+  );
 });
 
 test("数据所属人已离开家庭时待打卡提醒派生为已暂停", async () => {
@@ -498,6 +652,43 @@ test("已删除记录列表只返回当前家庭的软删除记录", async () =>
       },
     ],
   );
+});
+
+test("自定义模板颜色随时间线返回，旧模板没有颜色时使用默认色", async () => {
+  const caller = { _id: "user-1", displayName: "用户一" };
+  const coloredRecord = createRecord({
+    id: "custom-record",
+    occurredAt: "2026-08-05T02:00:00.000Z",
+  });
+  coloredRecord.sourceTemplateType = "custom";
+  coloredRecord.sourceTemplateId = "template-pulse";
+  coloredRecord.templateNameSnapshot = "脉搏";
+  const queryStore = createInMemoryQueryStore({
+    users: [caller],
+    memberships: [
+      { familyId: "family-1", userId: "user-1", status: "active" },
+    ],
+    records: [coloredRecord],
+    templates: [
+      {
+        _id: "template-pulse",
+        familyId: "family-1",
+        colorKey: "custom",
+        colorHex: "#3A7F91",
+      },
+    ],
+  });
+  const api = createQueryApi({
+    getCaller: async () => caller,
+    queryStore,
+  });
+
+  const result = await api.handle({
+    action: "getRecordTimeline",
+    data: { familyId: "family-1" },
+  });
+
+  assert.equal(result.data.items[0].templateColor, "#3A7F91");
 });
 
 test("健康记录看板一次返回五类卡片需要的家庭数据", async () => {

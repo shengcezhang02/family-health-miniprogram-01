@@ -11,6 +11,7 @@ function createDailyHealthPageLoader({
       family,
       members: dailyHealth.members || [],
       records: dailyHealth.records || [],
+      linkedRecords: dailyHealth.linkedRecords || [],
       reminders: dailyHealth.reminders || [],
       recurringRules: dailyHealth.recurringRules || [],
     };

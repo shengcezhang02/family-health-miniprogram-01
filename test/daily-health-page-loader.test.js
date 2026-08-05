@@ -45,6 +45,7 @@ test("每日健康主页面自行恢复当前家庭而不依赖路由参数", as
     family,
     members: [{ id: "user-1" }],
     records: [{ id: "record-1" }],
+    linkedRecords: [],
     reminders: [{ id: "reminder-1" }],
     recurringRules: [{ id: "rule-1" }],
   });
@@ -66,6 +67,7 @@ test("云端确认家庭关系后先交付本地快照再刷新云端数据", as
   const cachedResult = {
     members: [{ id: "user-1" }],
     records: [{ id: "cached-record" }],
+    linkedRecords: [],
     reminders: [],
     recurringRules: [],
   };
@@ -144,6 +146,7 @@ test("应用重启时可在请求云端前读取上次已验证的每日快照",
     },
     members: [{ id: "user-1" }],
     records: [{ id: "cached-record" }],
+    linkedRecords: [],
     reminders: [],
     recurringRules: [],
   });

@@ -4,6 +4,7 @@ function createCloudQueryStore(db) {
   const records = db.collection("health_records");
   const reminders = db.collection("one_time_reminders");
   const recurringRules = db.collection("recurring_rules");
+  const templates = db.collection("health_templates");
 
   async function findOne(collection, query) {
     const result = await collection.where(query).limit(1).get();
@@ -138,6 +139,22 @@ function createCloudQueryStore(db) {
         );
     },
 
+    async getRecordsByIds(familyId, recordIds) {
+      const results = await Promise.all(
+        [...new Set(recordIds)].map((recordId) =>
+          records.doc(recordId).get(),
+        ),
+      );
+      return results
+        .map((result) => result.data)
+        .filter(
+          (record) =>
+            record &&
+            record.familyId === familyId &&
+            record.deletedAt === undefined,
+        );
+    },
+
     async listActiveMemberships(familyId) {
       const result = await memberships
         .where({
@@ -157,6 +174,20 @@ function createCloudQueryStore(db) {
         .limit(100)
         .get();
       return result.data;
+    },
+
+    async listCustomTemplateColors(familyId) {
+      const result = await templates
+        .where({ familyId })
+        .limit(100)
+        .get();
+      return result.data.map((template) => ({
+        _id: template._id,
+        colorKey: template.colorKey || "purple",
+        ...(template.colorKey === "custom" && template.colorHex
+          ? { colorHex: template.colorHex }
+          : {}),
+      }));
     },
 
     async getUsersByIds(userIds) {

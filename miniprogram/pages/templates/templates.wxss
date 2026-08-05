@@ -1,6 +1,8 @@
 .template-shell {
   min-height: 100vh;
   box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
   padding: 48rpx 36rpx 72rpx;
   background:
     radial-gradient(circle at 90% 4%, rgba(105, 185, 151, 0.18), transparent 28%),
@@ -123,6 +125,100 @@
   margin-top: 24rpx;
 }
 
+.color-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.color-option {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 70rpx;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10rpx;
+  margin: 0;
+  padding: 0 14rpx;
+  border: 2rpx solid #dde7e2;
+  border-radius: 14rpx;
+  color: #49635a;
+  font-size: 22rpx;
+  background: #ffffff;
+}
+
+.custom-color-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.custom-color-preview {
+  width: 58rpx;
+  height: 58rpx;
+  flex: 0 0 58rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #d8e3dd;
+  border-radius: 12rpx;
+  background: linear-gradient(135deg, #f0ece6, #ffffff);
+}
+
+.color-code-input {
+  min-width: 0;
+  height: 68rpx;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0 18rpx;
+  border: 2rpx solid #dce8e2;
+  border-radius: 14rpx;
+  color: #173b2f;
+  font-size: 25rpx;
+  background: #ffffff;
+}
+
+.color-code-hint {
+  margin-top: 9rpx;
+  color: #7d8d86;
+  font-size: 21rpx;
+  line-height: 1.45;
+}
+
+.color-option--selected {
+  border-color: #2f765e;
+  color: #173b2f;
+  box-shadow: 0 0 0 3rpx rgba(47, 118, 94, 0.1);
+}
+
+.color-option__swatch,
+.template-card__color {
+  flex: 0 0 auto;
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 50%;
+  background: #75658c;
+}
+
+.color-option--rose .color-option__swatch,
+.template-card__color--rose { background: #b65d66; }
+.color-option--blue .color-option__swatch,
+.template-card__color--blue { background: #4d7598; }
+.color-option--green .color-option__swatch,
+.template-card__color--green { background: #4f8067; }
+.color-option--amber .color-option__swatch,
+.template-card__color--amber { background: #a87832; }
+.color-option--purple .color-option__swatch,
+.template-card__color--purple { background: #75658c; }
+.color-option--teal .color-option__swatch,
+.template-card__color--teal { background: #347a77; }
+
 .standalone-input,
 .picker-value {
   box-sizing: border-box;
@@ -209,6 +305,24 @@
 
 .template-list {
   margin-top: 30rpx;
+}
+
+.template-card {
+  border: 1rpx solid #e2ebe6;
+}
+
+.template-card__identity {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.template-card__color {
+  width: 14rpx;
+  height: 44rpx;
+  margin-top: 2rpx;
+  border-radius: 7rpx;
 }
 
 .template-card__meta,

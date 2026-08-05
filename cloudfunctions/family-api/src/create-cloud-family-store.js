@@ -208,14 +208,51 @@ function createCloudFamilyStore(db) {
       return findOne(users, { _id: userId });
     },
 
+    async updateUserDisplayName({ userId, displayName, timestamp }) {
+      return db.runTransaction(async (transaction) => {
+        const transactionUsers = transaction.collection("users");
+        const result = await transactionUsers.doc(userId).get();
+        const user = result.data ?? null;
+
+        if (!user) {
+          return null;
+        }
+
+        const updated = {
+          ...user,
+          displayName,
+          revision: user.revision + 1,
+          updatedAt: timestamp,
+        };
+        await transactionUsers.doc(userId).set({
+          data: withoutDocumentId(updated),
+        });
+        return updated;
+      });
+    },
+
     async joinFamilyWithInvite({
       inviteQuery,
       userId,
       profileManagementAllowed,
+      displayName,
       membershipId,
       timestamp,
     }) {
       return db.runTransaction(async (transaction) => {
+        const transactionUsers = transaction.collection("users");
+        const userResult = displayName
+          ? await transactionUsers.doc(userId).get()
+          : { data: null };
+        const user = userResult.data ?? null;
+        const renamedUser = user
+          ? {
+              ...user,
+              displayName,
+              revision: user.revision + 1,
+              updatedAt: timestamp,
+            }
+          : null;
         const inviteResult = await transaction
           .collection("family_invites")
           .where(inviteQuery)
@@ -243,9 +280,15 @@ function createCloudFamilyStore(db) {
             .collection("families")
             .doc(invite.familyId)
             .get();
+          if (renamedUser) {
+            await transactionUsers.doc(userId).set({
+              data: withoutDocumentId(renamedUser),
+            });
+          }
           return {
             family: familyResult.data,
             membership: existingMembership,
+            ...(renamedUser ? { user: renamedUser } : {}),
           };
         }
 
@@ -309,6 +352,11 @@ function createCloudFamilyStore(db) {
           .set({
             data: withoutDocumentId(usedInvite),
           });
+        if (renamedUser) {
+          await transactionUsers.doc(userId).set({
+            data: withoutDocumentId(renamedUser),
+          });
+        }
         const familyResult = await transaction
           .collection("families")
           .doc(invite.familyId)
@@ -317,6 +365,7 @@ function createCloudFamilyStore(db) {
         return {
           family: familyResult.data,
           membership,
+          ...(renamedUser ? { user: renamedUser } : {}),
         };
       });
     },

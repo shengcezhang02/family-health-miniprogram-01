@@ -21,6 +21,10 @@ const {
 const {
   createDisplayPreference,
 } = require("../../services/display-preference");
+const {
+  getHealthItemColorStyles,
+  getHealthItemTone,
+} = require("../../services/health-item-appearance");
 
 const TIME_RANGE_OPTIONS = [
   { value: "7d", label: "近7天" },
@@ -117,10 +121,18 @@ function formatTimelineItems(items, members, fieldKeys = []) {
 
   return items.map((item) => ({
     ...item,
+    ...getHealthItemColorStyles(
+      item.sourceTemplateId,
+      item.templateColor,
+    ),
+    tone: getHealthItemTone(item.sourceTemplateId, item.templateColor),
     displaySubjectName:
       memberLabelsById.get(item.subject.id) ||
       `${item.subject.displayName}（已退出）`,
+    displayCreatedByName:
+      item.createdBy?.displayName || "家庭成员",
     displayOccurredAt: formatDateTime(item.occurredAt),
+    displayCreatedAt: formatDateTime(item.createdAt),
     displayFields: (item.fieldSchemaSnapshot || [])
       .filter(
         (field) =>
@@ -174,9 +186,18 @@ function formatTrendSeries(series, templateId) {
 
 function formatCardViews(views, members) {
   return views.map((view) => {
+    const baseView = {
+      ...view,
+      ...getHealthItemColorStyles(
+        view.templateId,
+        view.templateColor,
+      ),
+      tone: getHealthItemTone(view.templateId, view.templateColor),
+    };
+
     if (view.type === "record_list") {
       return {
-        ...view,
+        ...baseView,
         items: formatTimelineItems(
           view.items,
           members,
@@ -187,9 +208,13 @@ function formatCardViews(views, members) {
 
     if (view.type === "latest_data") {
       return {
-        ...view,
+        ...baseView,
         items: view.items.map((item) => ({
           ...item,
+          ...getHealthItemColorStyles(
+            item.sourceTemplateId,
+            item.templateColor,
+          ),
           displayOccurredAt: formatDateTime(
             item.record.occurredAt,
           ),
@@ -211,22 +236,32 @@ function formatCardViews(views, members) {
 
     if (view.type === "trend") {
       return {
-        ...view,
+        ...baseView,
         series: formatTrendSeries(view.series, view.templateId),
       };
     }
 
     if (view.type === "reminder_completion") {
       return {
-        ...view,
+        ...baseView,
         items: view.items.map((item) => ({
           ...item,
+          tone: getHealthItemTone(
+            item.sourceTemplateId,
+            item.templateColor,
+          ),
           displayPlannedAt: formatDateTime(item.plannedAt),
+          displayNotificationTimes: (item.notificationTimes || [])
+            .map(formatDateTime)
+            .join("、"),
+          displayCreatedAt: formatDateTime(item.createdAt),
+          displayCreatedByName:
+            item.createdBy?.displayName || "家庭成员",
         })),
       };
     }
 
-    return view;
+    return baseView;
   });
 }
 

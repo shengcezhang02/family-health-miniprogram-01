@@ -30,6 +30,10 @@ const {
 const {
   createDisplayPreference,
 } = require("../../services/display-preference");
+const {
+  getHealthItemColorStyles,
+  getHealthItemTone,
+} = require("../../services/health-item-appearance");
 
 const DAILY_DISPLAY_MODE_KEY = "daily-health-display-mode";
 
@@ -67,6 +71,13 @@ function formatTime(isoString) {
     : `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function formatDateTime(isoString) {
+  const date = new Date(isoString);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : `${date.getMonth() + 1}/${date.getDate()} ${formatTime(isoString)}`;
+}
+
 function getDateDisplayData(date, todayDate) {
   const presentation = getDailyDatePresentation(date, todayDate);
   return {
@@ -101,11 +112,22 @@ function formatFields(item) {
 function formatReminders(reminders) {
   return reminders.map((reminder) => ({
     ...reminder,
+    ...getHealthItemColorStyles(
+      reminder.sourceTemplateId,
+      reminder.templateColor,
+    ),
+    tone: getHealthItemTone(
+      reminder.sourceTemplateId,
+      reminder.templateColor,
+    ),
     displayPlannedAt: formatTime(reminder.plannedAt),
     displayNotificationTimes: formatNotificationTimeSummary(
       reminder.notificationTimes,
     ),
     displaySubjectName: reminder.subject.displayName,
+    displayCreatedByName:
+      reminder.createdBy?.displayName || "家庭成员",
+    displayCreatedAt: formatDateTime(reminder.createdAt),
     displayFields: formatFields(reminder),
     canCheckIn:
       reminder.status === "pending" && reminder.subjectIsActive,
@@ -115,8 +137,20 @@ function formatReminders(reminders) {
 function formatRecords(records) {
   return records.map((record) => ({
     ...record,
+    ...getHealthItemColorStyles(
+      record.sourceTemplateId,
+      record.templateColor,
+    ),
+    tone: getHealthItemTone(
+      record.sourceTemplateId,
+      record.templateColor,
+    ),
     displayOccurredAt: formatTime(record.occurredAt),
+    displayOccurredDateTime: formatDateTime(record.occurredAt),
     displaySubjectName: record.subject.displayName,
+    displayCreatedByName:
+      record.createdBy?.displayName || "家庭成员",
+    displayCreatedAt: formatDateTime(record.createdAt),
     displayFields: formatFields(record),
   }));
 }
@@ -139,12 +173,44 @@ function formatRuleRepeat(repeat) {
 function formatRecurringRules(recurringRules) {
   return recurringRules.map((rule) => ({
     ...rule,
+    ...getHealthItemColorStyles(
+      rule.sourceTemplateId,
+      rule.templateColor,
+    ),
+    tone: getHealthItemTone(rule.sourceTemplateId, rule.templateColor),
     displaySubjectName: rule.subject.displayName,
+    displayCreatedByName:
+      rule.createdBy?.displayName || "家庭成员",
+    displayCreatedAt: formatDateTime(rule.createdAt),
     displayRepeat: formatRuleRepeat(rule.repeat),
     displayDailyTimes: rule.dailyTimes.join("、"),
     displayStatus:
       rule.status === "paused" ? "已暂停" : rule.datePhase,
   }));
+}
+
+function createMemberOptions(members) {
+  let familyNumber = 0;
+  return [
+    {
+      id: "all",
+      label: "全部成员",
+    },
+    ...members.map((member) => {
+      if (member.isSelf) {
+        return {
+          id: member.id,
+          label: `${member.displayName}（我）`,
+        };
+      }
+
+      familyNumber += 1;
+      return {
+        id: member.id,
+        label: `${member.displayName}（家人 ${familyNumber}）`,
+      };
+    }),
+  ];
 }
 
 function createTemplateOptions(records, reminders, recurringRules) {
@@ -348,6 +414,7 @@ Page({
           },
           members: cachedDailyHealth.members || [],
           records: cachedDailyHealth.records || [],
+          linkedRecords: cachedDailyHealth.linkedRecords || [],
           reminders: cachedDailyHealth.reminders || [],
           recurringRules:
             cachedDailyHealth.recurringRules || [],
@@ -359,6 +426,7 @@ Page({
     } else {
       this._dailyData = {
         records: [],
+        linkedRecords: [],
         reminders: [],
         recurringRules: [],
       };
@@ -606,20 +674,12 @@ Page({
 
   applyDailyResult(result, { fromCache = false } = {}) {
     const records = formatRecords(result.records);
+    const linkedRecords = formatRecords(result.linkedRecords || []);
     const reminders = formatReminders(result.reminders);
     const recurringRules = formatRecurringRules(
       result.recurringRules,
     );
-    const memberOptions = [
-      {
-        id: "all",
-        label: "全部成员",
-      },
-      ...result.members.map((member) => ({
-        id: member.id,
-        label: member.displayName,
-      })),
-    ];
+    const memberOptions = createMemberOptions(result.members);
     const templateOptions = createTemplateOptions(
       records,
       reminders,
@@ -637,6 +697,7 @@ Page({
       : "all";
     this._dailyData = {
       records,
+      linkedRecords,
       reminders,
       recurringRules,
     };

@@ -283,8 +283,18 @@ function buildDashboardCardViews({
   now = new Date(),
 }) {
   return cards.map((card) => {
+    const templateColor = card.templateId
+      ? [
+          ...(dashboardData.records || []),
+          ...(dashboardData.reminders || []),
+          ...(dashboardData.recurringRules || []),
+        ].find(
+          (item) => item.sourceTemplateId === card.templateId,
+        )?.templateColor
+      : undefined;
     const base = {
       ...card,
+      ...(templateColor ? { templateColor } : {}),
       typeLabel: TYPE_LABELS[card.type] || "健康卡片",
       filterLabel: buildFilterLabel(card, members),
       filterControls: buildDashboardFilterControls(card, members),

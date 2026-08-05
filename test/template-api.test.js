@@ -111,6 +111,7 @@ test("有效家庭成员可以创建家庭自定义模板", async () => {
     data: {
       familyId: "family-1",
       name: "晨间状态",
+      colorKey: "blue",
       fields: [
         {
           label: "晨间心情",
@@ -130,6 +131,7 @@ test("有效家庭成员可以创建家庭自定义模板", async () => {
         familyId: "family-1",
         sourceType: "custom",
         name: "晨间状态",
+        colorKey: "blue",
         status: "active",
         fields: [
           {
@@ -150,6 +152,58 @@ test("有效家庭成员可以创建家庭自定义模板", async () => {
       replayed: false,
     },
   });
+});
+
+test("自定义模板可以保存规范化的十六进制颜色", async () => {
+  const api = createTemplateApiFor({
+    createId(kind) {
+      return {
+        template: "template-color",
+        "field-0": "field-color",
+      }[kind];
+    },
+  });
+
+  const result = await api.handle({
+    action: "createCustomTemplate",
+    requestId: "req-create-colored-template",
+    data: {
+      familyId: "family-1",
+      name: "脉搏",
+      colorKey: "custom",
+      colorHex: "#3a7f91",
+      fields: [
+        {
+          label: "脉搏",
+          type: "number",
+          unit: "次/分",
+          required: true,
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.template.colorKey, "custom");
+  assert.equal(result.data.template.colorHex, "#3A7F91");
+});
+
+test("自定义模板拒绝可能注入样式的非法颜色代码", async () => {
+  const api = createTemplateApiFor();
+  const result = await api.handle({
+    action: "createCustomTemplate",
+    requestId: "req-invalid-color",
+    data: {
+      familyId: "family-1",
+      name: "非法颜色",
+      colorKey: "custom",
+      colorHex: "#fff;background:red",
+      fields: [{ label: "数值", type: "number" }],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "INVALID_ARGUMENT");
 });
 
 test("模板改名或停用字段后旧记录仍保留原快照", async () => {

@@ -161,32 +161,16 @@
   margin-bottom: 24rpx;
   overflow: hidden;
   border: 1rpx solid #ded8cf;
-  border-top: 7rpx solid #4d6f8d;
   border-radius: 14rpx;
   background: #ffffff;
   box-shadow: 0 8rpx 24rpx rgba(48, 55, 51, 0.06);
-}
-
-.dashboard-card--trend {
-  border-top-color: #557d72;
-}
-
-.dashboard-card--latest_data {
-  border-top-color: #b7813f;
-}
-
-.dashboard-card--reminder_completion {
-  border-top-color: #be6259;
-}
-
-.dashboard-card--recurring_rules {
-  border-top-color: #77679a;
 }
 
 .dashboard-card__header {
   display: block;
   padding: var(--display-card-padding);
   border-bottom: 1rpx solid #ebe6df;
+  background: linear-gradient(135deg, #f8faf9 0, #ffffff 62%);
 }
 
 .dashboard-card__heading {
@@ -195,11 +179,29 @@
 }
 
 .dashboard-card__type {
+  display: inline-flex;
+  padding: 4rpx 9rpx;
+  border-radius: 7rpx;
   color: #59736c;
   font-size: var(--display-meta-size);
   font-weight: 700;
   letter-spacing: 1.5rpx;
+  background: #e9f0ed;
 }
+
+.dashboard-card--latest_data .dashboard-card__type { color: #805a25; background: #f5ecdd; }
+.dashboard-card--reminder_completion .dashboard-card__type { color: #934d47; background: #f7e7e5; }
+.dashboard-card--recurring_rules .dashboard-card__type { color: #65577d; background: #eeeaf5; }
+.dashboard-card--blood-pressure .dashboard-card__header,
+.dashboard-card--rose .dashboard-card__header { background: linear-gradient(135deg, #fff8f9 0, #fff 62%); }
+.dashboard-card--blood-glucose .dashboard-card__header,
+.dashboard-card--blue .dashboard-card__header { background: linear-gradient(135deg, #f6fbfd 0, #fff 62%); }
+.dashboard-card--medication .dashboard-card__header,
+.dashboard-card--green .dashboard-card__header { background: linear-gradient(135deg, #f6fbf8 0, #fff 62%); }
+.dashboard-card--temperature .dashboard-card__header,
+.dashboard-card--amber .dashboard-card__header { background: linear-gradient(135deg, #fffaf2 0, #fff 62%); }
+.dashboard-card--purple .dashboard-card__header { background: linear-gradient(135deg, #f9f7fc 0, #fff 62%); }
+.dashboard-card--teal .dashboard-card__header { background: linear-gradient(135deg, #f5fbfa 0, #fff 62%); }
 
 .dashboard-card__title-row {
   display: flex;
@@ -330,6 +332,72 @@
   gap: 14rpx;
   padding: var(--display-row-padding) 2rpx;
   border-bottom: 1rpx solid #ebe6df;
+}
+
+.record-row,
+.reminder-row {
+  border-left: 6rpx solid #70698d;
+  padding-left: 14rpx;
+}
+
+.record-row--blood-pressure,
+.reminder-row--blood-pressure {
+  border-left-color: #b75460;
+  background: linear-gradient(90deg, #fbefef 0, #ffffff 26%);
+}
+
+.record-row--blood-glucose,
+.reminder-row--blood-glucose {
+  border-left-color: #437893;
+  background: linear-gradient(90deg, #edf5f8 0, #ffffff 26%);
+}
+
+.record-row--medication,
+.reminder-row--medication {
+  border-left-color: #427a6b;
+  background: linear-gradient(90deg, #edf6f2 0, #ffffff 26%);
+}
+
+.record-row--temperature,
+.reminder-row--temperature {
+  border-left-color: #a8732f;
+  background: linear-gradient(90deg, #fbf4e7 0, #ffffff 26%);
+}
+
+.record-row--rose,
+.reminder-row--rose { border-left-color: #b65d66; background: linear-gradient(90deg, #fbefef 0, #fff 26%); }
+.record-row--blue,
+.reminder-row--blue { border-left-color: #4d7598; background: linear-gradient(90deg, #edf4f8 0, #fff 26%); }
+.record-row--green,
+.reminder-row--green { border-left-color: #4f8067; background: linear-gradient(90deg, #edf6f1 0, #fff 26%); }
+.record-row--amber,
+.reminder-row--amber { border-left-color: #a87832; background: linear-gradient(90deg, #fbf4e7 0, #fff 26%); }
+.record-row--purple,
+.reminder-row--purple { border-left-color: #75658c; background: linear-gradient(90deg, #f2f0f8 0, #fff 26%); }
+.record-row--teal,
+.reminder-row--teal { border-left-color: #347a77; background: linear-gradient(90deg, #eaf5f3 0, #fff 26%); }
+
+.record-row__content {
+  min-width: 0;
+  flex: 1;
+}
+
+.record-row__main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.record-row__meta,
+.reminder-row__created {
+  margin-top: 6rpx;
+  overflow: hidden;
+  color: #78827e;
+  font-size: var(--display-meta-size);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .record-row:last-child,

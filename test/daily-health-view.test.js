@@ -166,6 +166,36 @@ test("混排时打卡记录嵌在来源提醒下，其他记录按时间排列",
   );
 });
 
+test("后来补打卡的记录只嵌入原提醒，不冒充所选日期的普通记录", () => {
+  const view = buildDailyHealthView({
+    records: [],
+    linkedRecords: [
+      createRecord({
+        id: "later-check-in",
+        occurredAt: "2026-08-05T02:04:00.000Z",
+        sourceReminderId: "august-2-reminder",
+      }),
+    ],
+    reminders: [
+      createReminder({
+        id: "august-2-reminder",
+        plannedAt: "2026-08-02T00:00:00.000Z",
+      }),
+    ],
+    recurringRules: [],
+  });
+
+  assert.deepEqual(view.records, []);
+  assert.deepEqual(
+    view.timelineItems[0].linkedRecords.map((record) => record.id),
+    ["later-check-in"],
+  );
+  assert.deepEqual(
+    view.reminders[0].linkedRecords.map((record) => record.id),
+    ["later-check-in"],
+  );
+});
+
 test("来源提醒被周期调整清理后，已打卡记录仍作为普通记录显示", () => {
   const view = buildDailyHealthView({
     records: [

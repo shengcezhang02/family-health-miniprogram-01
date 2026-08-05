@@ -123,13 +123,45 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
       );
     },
 
+    async updateUserDisplayName({ userId, displayName, timestamp }) {
+      const user = [...usersByOpenId.values()].find(
+        (candidate) => candidate._id === userId,
+      );
+
+      if (!user) {
+        return null;
+      }
+
+      const updated = {
+        ...user,
+        displayName,
+        revision: user.revision + 1,
+        updatedAt: timestamp,
+      };
+      usersByOpenId.set(user.wechatOpenId, structuredClone(updated));
+      return structuredClone(updated);
+    },
+
     async joinFamilyWithInvite({
       inviteQuery,
       userId,
       profileManagementAllowed,
+      displayName,
       membershipId,
       timestamp,
     }) {
+      const userEntry = [...usersByOpenId.entries()].find(
+        ([, user]) => user._id === userId,
+      );
+      const renamedUser =
+        displayName && userEntry
+          ? {
+              ...userEntry[1],
+              displayName,
+              revision: userEntry[1].revision + 1,
+              updatedAt: timestamp,
+            }
+          : null;
       const invite = [...invitesById.values()].find(
         (candidate) =>
           Object.entries(inviteQuery).every(
@@ -149,9 +181,13 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
         invite.usedByUserId === userId &&
         existingMembership?.status === "active"
       ) {
+        if (renamedUser) {
+          usersByOpenId.set(userEntry[0], structuredClone(renamedUser));
+        }
         return {
           family: structuredClone(familiesById.get(invite.familyId)),
           membership: structuredClone(existingMembership),
+          ...(renamedUser ? { user: structuredClone(renamedUser) } : {}),
         };
       }
 
@@ -203,10 +239,14 @@ function createInMemoryFamilyStore({ beforeFamilyCommit = async () => {} } = {})
         revision: invite.revision + 1,
         updatedAt: timestamp,
       });
+      if (renamedUser) {
+        usersByOpenId.set(userEntry[0], structuredClone(renamedUser));
+      }
 
       return {
         family: structuredClone(familiesById.get(invite.familyId)),
         membership: structuredClone(membership),
+        ...(renamedUser ? { user: structuredClone(renamedUser) } : {}),
       };
     },
 

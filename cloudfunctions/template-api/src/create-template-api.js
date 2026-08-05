@@ -13,6 +13,42 @@ const CUSTOM_FIELD_TYPES = new Set([
   "single_choice",
 ]);
 
+const CUSTOM_TEMPLATE_COLORS = new Set([
+  "rose",
+  "blue",
+  "green",
+  "amber",
+  "purple",
+  "teal",
+]);
+
+function normalizeTemplateColor(colorKey, colorHex) {
+  if (colorKey === undefined || colorKey === "") {
+    return { colorKey: "purple" };
+  }
+
+  if (colorKey === "custom") {
+    const normalizedHex =
+      typeof colorHex === "string" ? colorHex.trim().toUpperCase() : "";
+    if (!/^#[0-9A-F]{6}$/.test(normalizedHex)) {
+      throw new ApiError(
+        "INVALID_ARGUMENT",
+        "颜色代码应为 # 加 6 位十六进制字符",
+      );
+    }
+    return {
+      colorKey: "custom",
+      colorHex: normalizedHex,
+    };
+  }
+
+  if (!CUSTOM_TEMPLATE_COLORS.has(colorKey)) {
+    throw new ApiError("INVALID_ARGUMENT", "请选择有效的模板颜色");
+  }
+
+  return { colorKey };
+}
+
 function validateChoiceOptions(
   options,
   createId,
@@ -86,6 +122,10 @@ function toTemplateSummary(template) {
     familyId: template.familyId,
     sourceType: "custom",
     name: template.name,
+    colorKey: template.colorKey || "purple",
+    ...(template.colorKey === "custom" && template.colorHex
+      ? { colorHex: template.colorHex }
+      : {}),
     status: template.status,
     fields: template.fields.map((field) => ({
       ...field,
@@ -327,6 +367,7 @@ function createTemplateApi({
         familyId: data.familyId,
         originTemplateId: templateId,
         name,
+        ...normalizeTemplateColor(data.colorKey, data.colorHex),
         status: "active",
         fields: validateCreateFields(
           data.fields,
@@ -395,6 +436,7 @@ function createTemplateApi({
         templateId: data.templateId,
         expectedRevision: data.expectedRevision,
         name,
+        ...normalizeTemplateColor(data.colorKey, data.colorHex),
         fields: validateUpdateFields(
           data.fields,
           createId,

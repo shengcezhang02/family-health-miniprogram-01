@@ -76,7 +76,10 @@
     <view class="form-card">
       <view class="field-group">
         <view class="field-label">
-          {{mode === "record" ? "记录谁的健康情况" : "提醒谁"}}
+          {{mode === "record" ? "健康数据属于谁" : "提醒对象是谁"}}
+        </view>
+        <view class="form-hint">
+          {{mode === "record" ? "选择这条健康数据描述的人；当前操作账号会自动记为录入人。" : "选择需要关注这项提醒的人；当前操作账号会自动记为创建人。"}}
         </view>
         <picker
           id="record-member-picker"

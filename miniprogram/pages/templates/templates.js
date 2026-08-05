@@ -6,6 +6,22 @@ const FIELD_TYPES = [
   { value: "single_choice", label: "单选" },
 ];
 
+const COLOR_OPTIONS = [
+  { value: "rose", label: "柔和红" },
+  { value: "blue", label: "湖蓝" },
+  { value: "green", label: "青绿" },
+  { value: "amber", label: "暖金" },
+  { value: "purple", label: "灰紫" },
+  { value: "teal", label: "深青" },
+];
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function getColorPreviewStyle(colorKey, colorHex) {
+  return colorKey === "custom" && HEX_COLOR_PATTERN.test(colorHex || "")
+    ? `background: ${colorHex.toUpperCase()};`
+    : "";
+}
+
 function createBlankField() {
   return {
     key: "",
@@ -42,6 +58,10 @@ Page({
     editingTemplateId: "",
     expectedRevision: 0,
     formName: "",
+    formColorKey: "purple",
+    formColorHex: "",
+    formColorPreviewStyle: "",
+    colorOptions: COLOR_OPTIONS,
     formFields: [],
     fieldTypeLabels: FIELD_TYPES.map((item) => item.label),
     saving: false,
@@ -90,9 +110,16 @@ Page({
       });
       this.setData({
         status: "ready",
-        customTemplates: result.templates.filter(
-          (template) => template.sourceType === "custom",
-        ),
+        customTemplates: result.templates
+          .filter((template) => template.sourceType === "custom")
+          .map((template) => ({
+            ...template,
+            colorKey: template.colorKey || "purple",
+            colorPreviewStyle: getColorPreviewStyle(
+              template.colorKey,
+              template.colorHex,
+            ),
+          })),
       });
       if (this._openCreateOnReady) {
         this._openCreateOnReady = false;
@@ -112,6 +139,9 @@ Page({
       editingTemplateId: "",
       expectedRevision: 0,
       formName: "",
+      formColorKey: "purple",
+      formColorHex: "",
+      formColorPreviewStyle: "",
       formFields: [createBlankField()],
       errorMessage: "",
     });
@@ -131,6 +161,12 @@ Page({
       editingTemplateId: template.id,
       expectedRevision: template.revision,
       formName: template.name,
+      formColorKey: template.colorKey || "purple",
+      formColorHex: template.colorHex || "",
+      formColorPreviewStyle: getColorPreviewStyle(
+        template.colorKey,
+        template.colorHex,
+      ),
       formFields: template.fields.map(toFormField),
       errorMessage: "",
     });
@@ -152,6 +188,38 @@ Page({
   onNameInput(event) {
     this.setData({
       formName: event.detail.value,
+      errorMessage: "",
+    });
+  },
+
+  onColorSelect(event) {
+    if (this.data.saving) {
+      return;
+    }
+
+    const colorKey = event.currentTarget.dataset.colorKey;
+    if (!COLOR_OPTIONS.some((option) => option.value === colorKey)) {
+      return;
+    }
+
+    this.setData({
+      formColorKey: colorKey,
+      formColorHex: "",
+      formColorPreviewStyle: "",
+      errorMessage: "",
+    });
+  },
+
+  onColorCodeInput(event) {
+    const formColorHex = event.detail.value;
+    const normalizedHex = formColorHex.trim().toUpperCase();
+    const isValid = HEX_COLOR_PATTERN.test(normalizedHex);
+    this.setData({
+      formColorHex,
+      ...(isValid ? { formColorKey: "custom" } : {}),
+      formColorPreviewStyle: isValid
+        ? `background: ${normalizedHex};`
+        : "",
       errorMessage: "",
     });
   },
@@ -332,10 +400,15 @@ Page({
 
     let fields;
     const name = this.data.formName.trim();
+    const colorHex = this.data.formColorHex.trim().toUpperCase();
+    const hasCustomColor = colorHex.length > 0;
 
     try {
       if (!name) {
         throw new Error("请填写模板名称");
+      }
+      if (hasCustomColor && !HEX_COLOR_PATTERN.test(colorHex)) {
+        throw new Error("颜色代码应为 # 加 6 位字符，例如 #3A7F91");
       }
       fields = this.buildFields();
     } catch (error) {
@@ -357,12 +430,16 @@ Page({
           templateId: this.data.editingTemplateId,
           expectedRevision: this.data.expectedRevision,
           name,
+          colorKey: hasCustomColor ? "custom" : this.data.formColorKey,
+          ...(hasCustomColor ? { colorHex } : {}),
           fields,
         });
       } else {
         await app.callTemplateApi("createCustomTemplate", {
           familyId: this.data.familyId,
           name,
+          colorKey: hasCustomColor ? "custom" : this.data.formColorKey,
+          ...(hasCustomColor ? { colorHex } : {}),
           fields,
         });
       }

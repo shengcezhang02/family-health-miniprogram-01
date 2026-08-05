@@ -20,7 +20,9 @@ const SAVE_FEEDBACK_BY_MODE = {
 function completeHealthItemSave({
   mode,
   showToast,
-  navigate,
+  canNavigateBack = false,
+  navigateBack,
+  navigateFallback,
   setTimer = setTimeout,
 }) {
   const feedback =
@@ -34,7 +36,11 @@ function completeHealthItemSave({
 
   return new Promise((resolve) => {
     setTimer(() => {
-      navigate(feedback.target);
+      if (canNavigateBack && typeof navigateBack === "function") {
+        navigateBack();
+      } else {
+        navigateFallback(feedback.target);
+      }
       resolve();
     }, 700);
   });

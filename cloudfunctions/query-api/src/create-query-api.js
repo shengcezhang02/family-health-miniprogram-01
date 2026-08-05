@@ -33,17 +33,43 @@ function toIsoString(value) {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function toTimelineItem(record, usersById) {
-  const subject = usersById.get(record.subjectUserId);
+function toUserSummary(userId, usersById) {
+  const user = usersById.get(userId);
+  return {
+    id: userId,
+    displayName: user?.displayName ?? "家庭成员",
+    avatarUrl: user?.avatarUrl ?? null,
+  };
+}
+
+function getTemplateColor(item, templateColorsById) {
+  return item.sourceTemplateType === "custom"
+    ? templateColorsById.get(item.sourceTemplateId) || "purple"
+    : undefined;
+}
+
+function createTemplateColorsById(templates) {
+  return new Map(
+    templates.map((template) => [
+      template._id,
+      template.colorKey === "custom" &&
+      /^#[0-9A-Fa-f]{6}$/.test(template.colorHex || "")
+        ? template.colorHex.toUpperCase()
+        : template.colorKey || "purple",
+    ]),
+  );
+}
+
+function toTimelineItem(record, usersById, templateColorsById = new Map()) {
   const item = {
     id: record._id,
-    subject: {
-      id: record.subjectUserId,
-      displayName: subject?.displayName ?? "家庭成员",
-      avatarUrl: subject?.avatarUrl ?? null,
-    },
+    subject: toUserSummary(record.subjectUserId, usersById),
+    createdBy: toUserSummary(record.createdByUserId, usersById),
     sourceTemplateType: record.sourceTemplateType,
     sourceTemplateId: record.sourceTemplateId,
+    ...(record.sourceTemplateType === "custom"
+      ? { templateColor: getTemplateColor(record, templateColorsById) }
+      : {}),
     templateNameSnapshot: record.templateNameSnapshot,
     fieldSchemaSnapshot: record.fieldSchemaSnapshot.map((field) => ({
       ...field,
@@ -51,6 +77,7 @@ function toTimelineItem(record, usersById) {
     values: { ...record.values },
     occurredAt: toIsoString(record.occurredAt),
     createdByUserId: record.createdByUserId,
+    createdAt: toIsoString(record.createdAt),
     revision: record.revision,
   };
 
@@ -173,17 +200,17 @@ function toDailyReminder(
   usersById,
   currentTime,
   subjectIsActive,
+  templateColorsById = new Map(),
 ) {
-  const subject = usersById.get(reminder.subjectUserId);
   const item = {
     id: reminder._id,
-    subject: {
-      id: reminder.subjectUserId,
-      displayName: subject?.displayName ?? "家庭成员",
-      avatarUrl: subject?.avatarUrl ?? null,
-    },
+    subject: toUserSummary(reminder.subjectUserId, usersById),
+    createdBy: toUserSummary(reminder.createdByUserId, usersById),
     sourceTemplateType: reminder.sourceTemplateType,
     sourceTemplateId: reminder.sourceTemplateId,
+    ...(reminder.sourceTemplateType === "custom"
+      ? { templateColor: getTemplateColor(reminder, templateColorsById) }
+      : {}),
     templateNameSnapshot: reminder.templateNameSnapshot,
     fieldSchemaSnapshot: reminder.fieldSchemaSnapshot.map((field) => ({
       ...field,
@@ -193,6 +220,7 @@ function toDailyReminder(
     notificationTimes: (reminder.notificationTimes || []).map(
       toIsoString,
     ),
+    createdAt: toIsoString(reminder.createdAt),
     status: reminder.status,
     displayStatus: getReminderDisplayStatus(
       reminder,
@@ -259,17 +287,21 @@ function getRuleDatePhase(rule, currentDate) {
   return "进行中";
 }
 
-function toDailyRecurringRule(rule, usersById, currentDate) {
-  const subject = usersById.get(rule.subjectUserId);
+function toDailyRecurringRule(
+  rule,
+  usersById,
+  currentDate,
+  templateColorsById = new Map(),
+) {
   const item = {
     id: rule._id,
-    subject: {
-      id: rule.subjectUserId,
-      displayName: subject?.displayName ?? "家庭成员",
-      avatarUrl: subject?.avatarUrl ?? null,
-    },
+    subject: toUserSummary(rule.subjectUserId, usersById),
+    createdBy: toUserSummary(rule.createdByUserId, usersById),
     sourceTemplateType: rule.sourceTemplateType,
     sourceTemplateId: rule.sourceTemplateId,
+    ...(rule.sourceTemplateType === "custom"
+      ? { templateColor: getTemplateColor(rule, templateColorsById) }
+      : {}),
     templateNameSnapshot: rule.templateNameSnapshot,
     fieldSchemaSnapshot: rule.fieldSchemaSnapshot.map((field) => ({
       ...field,
@@ -281,6 +313,7 @@ function toDailyRecurringRule(rule, usersById, currentDate) {
     dailyTimes: [...rule.dailyTimes],
     status: rule.status,
     datePhase: getRuleDatePhase(rule, currentDate),
+    createdAt: toIsoString(rule.createdAt),
     revision: rule.revision,
   };
 
@@ -389,13 +422,23 @@ function createQueryApi({
         );
       }
 
-      const [records, reminders, allRules, activeMemberships] =
+      const [
+        records,
+        reminders,
+        allRules,
+        activeMemberships,
+        customTemplateColors,
+      ] =
         await Promise.all([
           queryStore.listDashboardRecords(data.familyId),
           queryStore.listDashboardReminders(data.familyId),
           queryStore.listRecurringRules(data.familyId),
           queryStore.listActiveMemberships(data.familyId),
+          queryStore.listCustomTemplateColors(data.familyId),
         ]);
+      const templateColorsById = createTemplateColorsById(
+        customTemplateColors,
+      );
       const recurringRules = allRules.filter(
         (rule) => rule.deletedAt === undefined,
       );
@@ -404,9 +447,14 @@ function createQueryApi({
           activeMemberships
             .map((activeMembership) => activeMembership.userId)
             .concat(records.map((record) => record.subjectUserId))
+            .concat(records.map((record) => record.createdByUserId))
             .concat(reminders.map((reminder) => reminder.subjectUserId))
+            .concat(reminders.map((reminder) => reminder.createdByUserId))
             .concat(
               recurringRules.map((rule) => rule.subjectUserId),
+            )
+            .concat(
+              recurringRules.map((rule) => rule.createdByUserId),
             ),
         ),
       ];
@@ -435,7 +483,7 @@ function createQueryApi({
             isSelf: user._id === caller._id,
           })),
         records: records.map((record) =>
-          toTimelineItem(record, usersById),
+          toTimelineItem(record, usersById, templateColorsById),
         ),
         reminders: reminders.map((reminder) =>
           toDailyReminder(
@@ -443,10 +491,16 @@ function createQueryApi({
             usersById,
             currentTime,
             activeUserIds.has(reminder.subjectUserId),
+            templateColorsById,
           ),
         ),
         recurringRules: recurringRules.map((rule) =>
-          toDailyRecurringRule(rule, usersById, currentDate),
+          toDailyRecurringRule(
+            rule,
+            usersById,
+            currentDate,
+            templateColorsById,
+          ),
         ),
       };
     },
@@ -470,7 +524,13 @@ function createQueryApi({
         );
       }
 
-      const [records, reminders, allRules, activeMemberships] =
+      const [
+        records,
+        reminders,
+        allRules,
+        activeMemberships,
+        customTemplateColors,
+      ] =
         await Promise.all([
         queryStore.listDailyRecords(
           data.familyId,
@@ -484,18 +544,40 @@ function createQueryApi({
         ),
           queryStore.listRecurringRules(data.familyId),
           queryStore.listActiveMemberships(data.familyId),
+          queryStore.listCustomTemplateColors(data.familyId),
         ]);
+      const templateColorsById = createTemplateColorsById(
+        customTemplateColors,
+      );
       const recurringRules = allRules.filter((rule) =>
         matchesRecurringRuleDate(rule, data.date),
       );
+      const dailyRecordIds = new Set(
+        records.map((record) => record._id),
+      );
+      const linkedRecords = (
+        await queryStore.getRecordsByIds(
+          data.familyId,
+          reminders
+            .map((reminder) => reminder.linkedRecordId)
+            .filter(Boolean),
+        )
+      ).filter((record) => !dailyRecordIds.has(record._id));
       const userIds = [
         ...new Set(
           activeMemberships
             .map((activeMembership) => activeMembership.userId)
             .concat(records.map((record) => record.subjectUserId))
+            .concat(records.map((record) => record.createdByUserId))
+            .concat(linkedRecords.map((record) => record.subjectUserId))
+            .concat(linkedRecords.map((record) => record.createdByUserId))
             .concat(
               reminders.map((reminder) => reminder.subjectUserId),
               recurringRules.map((rule) => rule.subjectUserId),
+            )
+            .concat(
+              reminders.map((reminder) => reminder.createdByUserId),
+              recurringRules.map((rule) => rule.createdByUserId),
             ),
         ),
       ];
@@ -520,9 +602,13 @@ function createQueryApi({
             id: user._id,
             displayName: user.displayName,
             avatarUrl: user.avatarUrl ?? null,
+            isSelf: user._id === caller._id,
           })),
         records: records.map((record) =>
-          toTimelineItem(record, usersById),
+          toTimelineItem(record, usersById, templateColorsById),
+        ),
+        linkedRecords: linkedRecords.map((record) =>
+          toTimelineItem(record, usersById, templateColorsById),
         ),
         reminders: reminders.map((reminder) =>
           toDailyReminder(
@@ -530,10 +616,16 @@ function createQueryApi({
             usersById,
             currentTime,
             activeUserIds.has(reminder.subjectUserId),
+            templateColorsById,
           ),
         ),
         recurringRules: recurringRules.map((rule) =>
-          toDailyRecurringRule(rule, usersById, currentDate),
+          toDailyRecurringRule(
+            rule,
+            usersById,
+            currentDate,
+            templateColorsById,
+          ),
         ),
       };
     },
@@ -560,19 +652,27 @@ function createQueryApi({
         Number.isInteger(data.limit) && data.limit > 0
           ? Math.min(data.limit, 50)
           : 20;
-      const records = await queryStore.listRecordTimeline(
-        data.familyId,
-        limit,
+      const [records, customTemplateColors] = await Promise.all([
+        queryStore.listRecordTimeline(data.familyId, limit),
+        queryStore.listCustomTemplateColors(data.familyId),
+      ]);
+      const templateColorsById = createTemplateColorsById(
+        customTemplateColors,
       );
       const userIds = [
-        ...new Set(records.map((record) => record.subjectUserId)),
+        ...new Set(
+          records.flatMap((record) => [
+            record.subjectUserId,
+            record.createdByUserId,
+          ]),
+        ),
       ];
       const users = await queryStore.getUsersByIds(userIds);
       const usersById = new Map(users.map((user) => [user._id, user]));
 
       return {
         items: records.map((record) =>
-          toTimelineItem(record, usersById),
+          toTimelineItem(record, usersById, templateColorsById),
         ),
       };
     },
@@ -599,19 +699,27 @@ function createQueryApi({
         Number.isInteger(data.limit) && data.limit > 0
           ? Math.min(data.limit, 50)
           : 20;
-      const records = await queryStore.listDeletedRecords(
-        data.familyId,
-        limit,
+      const [records, customTemplateColors] = await Promise.all([
+        queryStore.listDeletedRecords(data.familyId, limit),
+        queryStore.listCustomTemplateColors(data.familyId),
+      ]);
+      const templateColorsById = createTemplateColorsById(
+        customTemplateColors,
       );
       const userIds = [
-        ...new Set(records.map((record) => record.subjectUserId)),
+        ...new Set(
+          records.flatMap((record) => [
+            record.subjectUserId,
+            record.createdByUserId,
+          ]),
+        ),
       ];
       const users = await queryStore.getUsersByIds(userIds);
       const usersById = new Map(users.map((user) => [user._id, user]));
 
       return {
         items: records.map((record) =>
-          toTimelineItem(record, usersById),
+          toTimelineItem(record, usersById, templateColorsById),
         ),
       };
     },

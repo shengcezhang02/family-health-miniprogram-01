@@ -4,6 +4,7 @@ function createInMemoryQueryStore({
   records = [],
   reminders = [],
   recurringRules = [],
+  templates = [],
 } = {}) {
   const usersById = new Map(
     users.map((user) => [user._id, structuredClone(user)]),
@@ -108,6 +109,18 @@ function createInMemoryQueryStore({
         .map((reminder) => structuredClone(reminder));
     },
 
+    async getRecordsByIds(familyId, recordIds) {
+      const recordIdSet = new Set(recordIds);
+      return records
+        .filter(
+          (record) =>
+            record.familyId === familyId &&
+            record.deletedAt === undefined &&
+            recordIdSet.has(record._id),
+        )
+        .map((record) => structuredClone(record));
+    },
+
     async listActiveMemberships(familyId) {
       return memberships
         .filter(
@@ -122,6 +135,18 @@ function createInMemoryQueryStore({
       return recurringRules
         .filter((rule) => rule.familyId === familyId)
         .map((rule) => structuredClone(rule));
+    },
+
+    async listCustomTemplateColors(familyId) {
+      return templates
+        .filter((template) => template.familyId === familyId)
+        .map((template) => ({
+          _id: template._id,
+          colorKey: template.colorKey || "purple",
+          ...(template.colorKey === "custom" && template.colorHex
+            ? { colorHex: template.colorHex }
+            : {}),
+        }));
     },
 
     async getUsersByIds(userIds) {

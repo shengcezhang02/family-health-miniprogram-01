@@ -944,7 +944,9 @@ Page({
       await completeHealthItemSave({
         mode: this.data.mode,
         showToast: (options) => wx.showToast(options),
-        navigate: (url) =>
+        canNavigateBack: getCurrentPages().length > 1,
+        navigateBack: () => wx.navigateBack({ delta: 1 }),
+        navigateFallback: (url) =>
           wx.switchTab({
             url,
           }),

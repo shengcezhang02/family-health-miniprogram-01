@@ -41,6 +41,33 @@
       bindinput="onNameInput"
     />
 
+    <view class="field-label field-label--spaced">模板颜色</view>
+    <view class="color-picker" role="radiogroup" aria-label="模板颜色">
+      <button
+        wx:for="{{colorOptions}}"
+        wx:key="value"
+        class="color-option color-option--{{item.value}} {{formColorKey === item.value ? 'color-option--selected' : ''}}"
+        data-color-key="{{item.value}}"
+        disabled="{{saving}}"
+        bindtap="onColorSelect"
+      >
+        <view class="color-option__swatch"></view>
+        <view>{{item.label}}</view>
+      </button>
+    </view>
+    <view class="custom-color-row">
+      <view class="custom-color-preview" style="{{formColorPreviewStyle}}"></view>
+      <input
+        class="field-input color-code-input"
+        maxlength="7"
+        value="{{formColorHex}}"
+        placeholder="#3A7F91"
+        disabled="{{saving}}"
+        bindinput="onColorCodeInput"
+      />
+    </view>
+    <view class="color-code-hint">也可以输入颜色代码：# 加 6 位数字或 A-F</view>
+
     <view
       wx:for="{{formFields}}"
       wx:key="index"
@@ -221,12 +248,15 @@
   </view>
 
   <view wx:else class="template-list">
-    <view wx:for="{{customTemplates}}" wx:key="id" class="template-card">
+    <view wx:for="{{customTemplates}}" wx:key="id" class="template-card template-card--{{item.colorKey}}">
       <view class="template-card__top">
-        <view>
+        <view class="template-card__identity">
+          <view class="template-card__color template-card__color--{{item.colorKey}}" style="{{item.colorPreviewStyle}}"></view>
+          <view>
           <view class="template-card__title">{{item.name}}</view>
           <view class="template-card__meta">
             {{item.fields.length}} 个字段 · 版本 {{item.revision}}
+          </view>
           </view>
         </view>
         <view class="status-badge status-badge--{{item.status}}">

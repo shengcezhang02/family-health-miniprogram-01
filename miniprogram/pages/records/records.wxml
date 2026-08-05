@@ -68,15 +68,15 @@
       wx:for="{{cards}}"
       wx:key="id"
       wx:for-item="card"
-      class="dashboard-card dashboard-card--{{card.type}}"
+      class="dashboard-card dashboard-card--{{card.type}} dashboard-card--{{card.tone}}"
     >
-      <view class="dashboard-card__header">
+      <view class="dashboard-card__header" style="{{card.headerStyle}}">
         <view
           class="dashboard-card__heading"
           data-card-id="{{card.id}}"
           bindtap="onOpenCard"
         >
-          <view class="dashboard-card__type">{{card.typeLabel}}</view>
+          <view class="dashboard-card__type" style="{{card.badgeStyle}}">{{card.typeLabel}}</view>
           <view class="dashboard-card__title-row">
             <view class="dashboard-card__title">{{card.title}}</view>
             <view class="dashboard-card__open">›</view>
@@ -122,23 +122,30 @@
             wx:for="{{card.items}}"
             wx:key="id"
             wx:for-item="record"
-            class="record-row"
+            class="record-row record-row--{{record.tone}}"
+            style="{{record.rowStyle}}"
             data-record-id="{{record.id}}"
             bindtap="onOpenRecord"
           >
-            <view class="record-row__identity">
-              <text class="record-row__name">{{record.templateNameSnapshot}}</text>
-              <text class="record-row__member">· {{record.displaySubjectName}}</text>
+            <view class="record-row__content">
+              <view class="record-row__main">
+                <view class="record-row__identity">
+                  <text class="record-row__name">{{record.templateNameSnapshot}}</text>
+                </view>
+                <view class="record-row__values">
+                  <text
+                    wx:for="{{record.displayFields}}"
+                    wx:key="key"
+                    wx:for-item="field"
+                    class="record-row__value"
+                  >{{field.label}} {{field.value}}</text>
+                </view>
+                <view class="record-row__time">记录时间 {{record.displayOccurredAt}}</view>
+              </view>
+              <view class="record-row__meta">
+                数据属于：{{record.displaySubjectName}} · 录入人：{{record.displayCreatedByName}} · 创建于：{{record.displayCreatedAt}}
+              </view>
             </view>
-            <view class="record-row__values">
-              <text
-                wx:for="{{record.displayFields}}"
-                wx:key="key"
-                wx:for-item="field"
-                class="record-row__value"
-              >{{field.label}} {{field.value}}</text>
-            </view>
-            <view class="record-row__time">{{record.displayOccurredAt}}</view>
           </view>
         </view>
       </block>
@@ -261,17 +268,22 @@
             wx:for="{{card.items}}"
             wx:key="id"
             wx:for-item="reminder"
-            class="reminder-row"
+            class="reminder-row reminder-row--{{reminder.tone}}"
+            style="{{reminder.rowStyle}}"
             data-reminder-id="{{reminder.id}}"
             bindtap="onOpenReminder"
           >
             <view>
               <view class="reminder-row__name">{{reminder.templateNameSnapshot}}</view>
-              <view class="reminder-row__member">{{reminder.subject.displayName}}</view>
+              <view class="reminder-row__member">
+                提醒对象：{{reminder.subject.displayName}} · 创建人：{{reminder.displayCreatedByName}}
+              </view>
             </view>
             <view class="reminder-row__right">
               <view class="reminder-row__status">{{reminder.displayStatus}}</view>
-              <view class="reminder-row__time">{{reminder.displayPlannedAt}}</view>
+              <view class="reminder-row__time">计划 {{reminder.displayPlannedAt}}</view>
+              <view wx:if="{{reminder.displayNotificationTimes}}" class="reminder-row__time">通知 {{reminder.displayNotificationTimes}}</view>
+              <view class="reminder-row__created">创建于 {{reminder.displayCreatedAt}}</view>
             </view>
           </view>
         </view>

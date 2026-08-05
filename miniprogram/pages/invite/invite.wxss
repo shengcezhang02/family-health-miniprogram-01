@@ -104,6 +104,29 @@
   font-weight: 760;
 }
 
+.join-name-field {
+  margin-top: 32rpx;
+}
+
+.name-input {
+  height: 88rpx;
+  box-sizing: border-box;
+  margin-top: 12rpx;
+  padding: 0 22rpx;
+  border: 2rpx solid #cfded8;
+  border-radius: 14rpx;
+  color: #173b2f;
+  font-size: 29rpx;
+  background: #ffffff;
+}
+
+.field-help {
+  margin-top: 10rpx;
+  color: #789087;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
 .permission-row {
   display: flex;
   align-items: center;

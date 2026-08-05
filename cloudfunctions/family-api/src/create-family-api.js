@@ -158,6 +158,29 @@ function createFamilyApi({
       };
     },
 
+    async updateMyDisplayName(data) {
+      const displayName = data.displayName?.trim();
+
+      if (!displayName) {
+        throw new ApiError("INVALID_ARGUMENT", "请填写你的名字");
+      }
+
+      if (displayName.length > 20) {
+        throw new ApiError("INVALID_ARGUMENT", "名字最多 20 个字");
+      }
+
+      const user = await getOrCreateCaller();
+      const updatedUser = await familyStore.updateUserDisplayName({
+        userId: user._id,
+        displayName,
+        timestamp: now(),
+      });
+
+      return {
+        user: toUserSummary(updatedUser),
+      };
+    },
+
     async createInvite(data) {
       if (!data.familyId) {
         throw new ApiError("INVALID_ARGUMENT", "请选择要邀请家人加入的家庭");
@@ -253,12 +276,23 @@ function createFamilyApi({
         );
       }
 
+      const displayName = data.displayName?.trim();
+
+      if (data.displayName !== undefined && !displayName) {
+        throw new ApiError("INVALID_ARGUMENT", "请填写你的名字");
+      }
+
+      if (displayName && displayName.length > 20) {
+        throw new ApiError("INVALID_ARGUMENT", "名字最多 20 个字");
+      }
+
       const user = await getOrCreateCaller();
       const timestamp = now();
       const result = await familyStore.joinFamilyWithInvite({
         inviteQuery: createInviteQuery(data),
         userId: user._id,
         profileManagementAllowed: data.profileManagementAllowed,
+        displayName,
         membershipId: createId(),
         timestamp,
       });
@@ -279,6 +313,9 @@ function createFamilyApi({
 
       return {
         family: toFamilySummary(result),
+        ...(displayName
+          ? { user: toUserSummary(result.user || user) }
+          : {}),
         profileManagementAllowed:
           result.membership.profileManagementAllowed,
       };

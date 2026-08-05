@@ -57,6 +57,8 @@ function createInMemoryTemplateStore({
       templateId,
       expectedRevision,
       name,
+      colorKey,
+      colorHex,
       fields,
       updatedByUserId,
       updatedAt,
@@ -84,11 +86,17 @@ function createInMemoryTemplateStore({
       const updated = {
         ...existing,
         name,
+        colorKey,
         fields: structuredClone(fields),
         updatedByUserId,
         updatedAt,
         revision: existing.revision + 1,
       };
+      if (colorKey === "custom") {
+        updated.colorHex = colorHex;
+      } else {
+        delete updated.colorHex;
+      }
       templatesById.set(templateId, updated);
 
       return {

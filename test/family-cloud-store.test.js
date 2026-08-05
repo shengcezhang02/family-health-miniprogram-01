@@ -8,6 +8,54 @@ const {
   createInMemoryCloudDatabase,
 } = require("./support/create-in-memory-cloud-database");
 
+test("CloudBase 加入家庭事务同时保存成员关系和用户显示名称", async () => {
+  const timestamp = new Date("2026-08-05T02:00:00.000Z");
+  const db = createInMemoryCloudDatabase({
+    users: [
+      {
+        _id: "user-1",
+        wechatOpenId: "openid-1",
+        displayName: "微信用户",
+        revision: 1,
+      },
+    ],
+    families: [
+      {
+        _id: "family-1",
+        name: "测试家庭",
+        revision: 1,
+      },
+    ],
+    family_invites: [
+      {
+        _id: "invite-1",
+        familyId: "family-1",
+        status: "active",
+        expiresAt: new Date("2026-08-06T02:00:00.000Z"),
+        revision: 1,
+      },
+    ],
+  });
+  const store = createCloudFamilyStore(db);
+
+  const result = await store.joinFamilyWithInvite({
+    inviteQuery: { _id: "invite-1" },
+    userId: "user-1",
+    displayName: "爸爸",
+    profileManagementAllowed: true,
+    membershipId: "membership-1",
+    timestamp,
+  });
+
+  assert.equal(result.user.displayName, "爸爸");
+  assert.equal(db.read("users", "user-1").displayName, "爸爸");
+  assert.equal(
+    db.read("family_memberships", "membership-1").status,
+    "active",
+  );
+  assert.equal(db.read("family_invites", "invite-1").status, "used");
+});
+
 test("CloudBase 事务串行处理两名管理员的同时自我降级", async () => {
   const db = createInMemoryCloudDatabase({
     families: [

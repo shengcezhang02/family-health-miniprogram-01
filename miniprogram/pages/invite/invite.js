@@ -9,6 +9,7 @@ Page({
     shortCode: "",
     joinCredential: null,
     invitePreview: null,
+    displayName: "",
     profileManagementAllowed: true,
     busy: false,
     errorMessage: "",
@@ -25,6 +26,12 @@ Page({
   async prepare(options) {
     try {
       const bootstrap = await app.callFamilyApi("bootstrap");
+      const displayName =
+        bootstrap.user?.displayName === "微信用户"
+          ? ""
+          : bootstrap.user?.displayName || "";
+
+      this.setData({ displayName });
 
       if (this.data.mode === "create") {
         const family = bootstrap.families.find(
@@ -185,6 +192,13 @@ Page({
     });
   },
 
+  onDisplayNameInput(event) {
+    this.setData({
+      displayName: event.detail.value,
+      errorMessage: "",
+    });
+  },
+
   onChangeInviteCode() {
     this.setData({
       joinCredential: null,
@@ -198,6 +212,15 @@ Page({
       return;
     }
 
+    const displayName = this.data.displayName.trim();
+
+    if (!displayName) {
+      this.setData({
+        errorMessage: "请先填写你在家庭中显示的名字",
+      });
+      return;
+    }
+
     this.setData({
       busy: true,
       errorMessage: "",
@@ -206,6 +229,7 @@ Page({
     try {
       const result = await app.callFamilyApi("joinFamily", {
         ...this.data.joinCredential,
+        displayName,
         profileManagementAllowed:
           this.data.profileManagementAllowed,
       });

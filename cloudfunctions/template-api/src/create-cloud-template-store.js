@@ -95,6 +95,8 @@ function createCloudTemplateStore(db) {
       templateId,
       expectedRevision,
       name,
+      colorKey,
+      colorHex,
       fields,
       updatedByUserId,
       updatedAt,
@@ -164,11 +166,17 @@ function createCloudTemplateStore(db) {
         const updated = {
           ...existing,
           name,
+          colorKey,
           fields,
           updatedByUserId,
           updatedAt,
           revision: existing.revision + 1,
         };
+        if (colorKey === "custom") {
+          updated.colorHex = colorHex;
+        } else {
+          delete updated.colorHex;
+        }
 
         await transactionTemplates.doc(templateId).set({
           data: withoutDocumentId(updated),

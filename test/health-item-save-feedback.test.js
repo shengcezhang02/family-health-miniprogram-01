@@ -5,7 +5,7 @@ const {
   completeHealthItemSave,
 } = require("../miniprogram/services/health-item-save-feedback");
 
-test("健康事项保存成功后先显示明确提示再跳转", async () => {
+test("没有上一页时，健康事项保存成功后先提示再返回默认页", async () => {
   const events = [];
 
   await completeHealthItemSave({
@@ -13,8 +13,12 @@ test("健康事项保存成功后先显示明确提示再跳转", async () => {
     showToast(options) {
       events.push(["toast", options]);
     },
-    navigate(url) {
-      events.push(["navigate", url]);
+    canNavigateBack: false,
+    navigateBack() {
+      events.push(["back"]);
+    },
+    navigateFallback(url) {
+      events.push(["fallback", url]);
     },
     setTimer(callback, delay) {
       events.push(["wait", delay]);
@@ -32,6 +36,29 @@ test("健康事项保存成功后先显示明确提示再跳转", async () => {
       },
     ],
     ["wait", 700],
-    ["navigate", "/pages/daily-health/daily-health"],
+    ["fallback", "/pages/daily-health/daily-health"],
   ]);
+});
+
+test("有上一页时，保存后返回实际来源页而不强制切换标签", async () => {
+  const events = [];
+
+  await completeHealthItemSave({
+    mode: "record",
+    canNavigateBack: true,
+    showToast(options) {
+      events.push(["toast", options.title]);
+    },
+    navigateBack() {
+      events.push(["back"]);
+    },
+    navigateFallback(url) {
+      events.push(["fallback", url]);
+    },
+    setTimer(callback) {
+      callback();
+    },
+  });
+
+  assert.deepEqual(events, [["toast", "记录已保存"], ["back"]]);
 });

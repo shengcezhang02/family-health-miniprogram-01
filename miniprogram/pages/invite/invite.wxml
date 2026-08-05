@@ -86,6 +86,20 @@
         邀请人：{{invitePreview.invitedByDisplayName}}
       </view>
 
+      <view class="join-name-field">
+        <view class="field-label">你在家庭中显示的名字</view>
+        <input
+          id="join-display-name-input"
+          class="name-input"
+          value="{{displayName}}"
+          maxlength="20"
+          placeholder="例如：爸爸、妈妈、小林"
+          disabled="{{busy}}"
+          bindinput="onDisplayNameInput"
+        />
+        <view class="field-help">用于区分健康数据属于谁；之后仍可在“我和家庭”里修改。</view>
+      </view>
+
       <view class="permission-row">
         <view class="permission-row__content">
           <view class="permission-row__title">允许家庭代管健康档案</view>

@@ -156,6 +156,30 @@
       </view>
     </view>
 
+    <view class="name-setting">
+      <view class="name-setting__copy">
+        <view class="name-setting__title">我的名字</view>
+        <view class="name-setting__description">家人会用这个名字识别健康数据属于谁</view>
+      </view>
+      <view class="name-setting__form">
+        <input
+          id="my-display-name-input"
+          class="name-setting__input"
+          value="{{displayNameDraft}}"
+          maxlength="20"
+          disabled="{{renaming}}"
+          bindinput="onDisplayNameInput"
+        />
+        <button
+          id="save-display-name-button"
+          class="name-setting__button"
+          loading="{{renaming}}"
+          disabled="{{renaming}}"
+          bindtap="onSaveDisplayName"
+        >保存</button>
+      </view>
+    </view>
+
     <view class="current-space">
       <view>
         <view class="current-space__label">当前家庭</view>

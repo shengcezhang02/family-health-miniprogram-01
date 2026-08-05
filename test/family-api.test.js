@@ -51,7 +51,7 @@ function createFamilyScenario() {
 
       return result.data.family;
     },
-    async joinMember(familyId, openId) {
+    async joinMember(familyId, openId, displayName) {
       const invite = await api.handle({
         action: "createInvite",
         requestId: `req-invite-${openId}`,
@@ -66,6 +66,7 @@ function createFamilyScenario() {
         data: {
           token: invite.data.invite.token,
           profileManagementAllowed: true,
+          ...(displayName ? { displayName } : {}),
         },
       });
       const bootstrapped = await api.handle({
@@ -728,6 +729,42 @@ test("bootstrap 不信任请求中伪造的身份和角色", async () => {
       message: "无法确认微信身份，请重新进入小程序",
     },
   });
+});
+
+test("用户可以修改自己的全局显示名称", async () => {
+  const scenario = createFamilyScenario();
+  await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-before-rename",
+  });
+
+  const renamed = await scenario.api.handle({
+    action: "updateMyDisplayName",
+    requestId: "req-rename-self",
+    data: {
+      displayName: "  妈妈  ",
+    },
+  });
+  const bootstrapped = await scenario.api.handle({
+    action: "bootstrap",
+    requestId: "req-bootstrap-after-rename",
+  });
+
+  assert.equal(renamed.ok, true);
+  assert.equal(renamed.data.user.displayName, "妈妈");
+  assert.equal(bootstrapped.data.user.displayName, "妈妈");
+});
+
+test("加入家庭时填写的名字立即成为全局显示名称", async () => {
+  const scenario = createFamilyScenario();
+  const family = await scenario.createFamily();
+  const joined = await scenario.joinMember(
+    family.id,
+    "member-openid",
+    "  爸爸  ",
+  );
+
+  assert.equal(joined.user.displayName, "爸爸");
 });
 
 test("普通成员不能把其他成员提升为管理员", async () => {

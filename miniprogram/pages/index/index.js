@@ -29,6 +29,9 @@ Page({
     formError: "",
     creating: false,
     families: [],
+    currentUser: null,
+    displayNameDraft: "",
+    renaming: false,
     showFamilySwitcher: false,
     displaySize: "large",
     displaySizeClass: "display-size--large",
@@ -159,6 +162,8 @@ Page({
           : "环境已就绪，可以创建第一个家庭空间",
         currentFamily,
         families: data.families,
+        currentUser: data.user,
+        displayNameDraft: data.user?.displayName || "",
       });
     } catch (error) {
       console.error("bootstrap failed", error);
@@ -183,6 +188,8 @@ Page({
       this.setData({
         currentFamily,
         families: data.families,
+        currentUser: data.user,
+        displayNameDraft: data.user?.displayName || "",
       });
     } catch (error) {
       console.warn("refresh family context failed", error);
@@ -199,6 +206,52 @@ Page({
     wx.navigateTo({
       url: "/pages/invite/invite?mode=join",
     });
+  },
+
+  onDisplayNameInput(event) {
+    this.setData({
+      displayNameDraft: event.detail.value,
+    });
+  },
+
+  async onSaveDisplayName() {
+    const displayName = this.data.displayNameDraft.trim();
+
+    if (!displayName) {
+      wx.showToast({
+        title: "请先填写名字",
+        icon: "none",
+      });
+      return;
+    }
+
+    if (this.data.renaming) {
+      return;
+    }
+
+    this.setData({ renaming: true });
+
+    try {
+      const result = await this.callFamilyApi(
+        "updateMyDisplayName",
+        { displayName },
+      );
+      this.setData({
+        currentUser: result.user,
+        displayNameDraft: result.user.displayName,
+      });
+      wx.showToast({
+        title: "名字已更新",
+        icon: "success",
+      });
+    } catch (error) {
+      wx.showToast({
+        title: error.message || "修改失败，请稍后重试",
+        icon: "none",
+      });
+    } finally {
+      this.setData({ renaming: false });
+    }
   },
 
   onOpenProfiles() {

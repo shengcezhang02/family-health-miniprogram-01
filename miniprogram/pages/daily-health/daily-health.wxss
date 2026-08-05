@@ -169,12 +169,61 @@
 }
 
 .health-card {
+  position: relative;
   margin-top: 12rpx;
   padding: var(--display-row-padding) var(--display-card-padding);
   border: 1rpx solid #e2ddd5;
   border-radius: 14rpx;
   background: #ffffff;
+  box-shadow: 0 5rpx 16rpx rgba(48, 55, 51, 0.045);
 }
+
+.health-card.health-card--blood-pressure {
+  border-color: #ead8da;
+  background: linear-gradient(90deg, #f9e8ea 0%, #fcf5f6 48%, #ffffff 80%);
+}
+
+.health-card.health-card--blood-glucose {
+  border-color: #d7e4ea;
+  background: linear-gradient(90deg, #e8f2f6 0%, #f5fafc 48%, #ffffff 80%);
+}
+
+.health-card.health-card--medication {
+  border-color: #d6e5df;
+  background: linear-gradient(90deg, #e7f2ed 0%, #f5faf7 48%, #ffffff 80%);
+}
+
+.health-card.health-card--temperature {
+  border-color: #eadfcf;
+  background: linear-gradient(90deg, #f7eddc 0%, #fcf7ee 48%, #ffffff 80%);
+}
+
+.health-card.health-card--rose { border-color: #ead8da; background: linear-gradient(90deg, #f9e8ea 0%, #fcf5f6 48%, #fff 80%); }
+.health-card.health-card--blue { border-color: #d7e3ec; background: linear-gradient(90deg, #e8f0f7 0%, #f5f8fb 48%, #fff 80%); }
+.health-card.health-card--green { border-color: #d8e5dc; background: linear-gradient(90deg, #e9f2ec 0%, #f6faf7 48%, #fff 80%); }
+.health-card.health-card--amber { border-color: #e9dfcf; background: linear-gradient(90deg, #f6ecd9 0%, #fcf7ee 48%, #fff 80%); }
+.health-card.health-card--purple { border-color: #e0dce8; background: linear-gradient(90deg, #eeeaf5 0%, #f8f6fb 48%, #fff 80%); }
+.health-card.health-card--teal { border-color: #d4e4e2; background: linear-gradient(90deg, #e3f0ee 0%, #f4f9f8 48%, #fff 80%); }
+.health-card.health-card--custom-color { border-color: #e0dce8; background: linear-gradient(90deg, #eeeaf5 0%, #f8f6fb 48%, #fff 80%); }
+
+.health-card__title {
+  display: inline-flex;
+  padding: 4rpx 10rpx;
+  border-radius: 7rpx;
+  line-height: 1.3;
+  background: #f1eee9;
+}
+
+.health-card--blood-pressure .health-card__title,
+.health-card--rose .health-card__title { color: #93454f; background: #f7e7e9; }
+.health-card--blood-glucose .health-card__title,
+.health-card--blue .health-card__title { color: #376882; background: #e7f0f4; }
+.health-card--medication .health-card__title,
+.health-card--green .health-card__title { color: #356b59; background: #e7f1ed; }
+.health-card--temperature .health-card__title,
+.health-card--amber .health-card__title { color: #855b24; background: #f6eddc; }
+.health-card--purple .health-card__title { color: #65577d; background: #eeeaf5; }
+.health-card--teal .health-card__title { color: #286964; background: #e3f0ee; }
 
 .state-card {
   margin-top: 60rpx;
@@ -428,11 +477,21 @@
   font-size: var(--display-body-size);
 }
 
-.health-card__subject {
-  min-width: 0;
+.health-card__meta {
   overflow: hidden;
+  margin-top: 8rpx;
+  color: #78827e;
+  font-size: var(--display-meta-size);
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.health-card__subject {
+  min-width: 0;
+  margin-top: 7rpx;
+  line-height: 1.4;
+  overflow-wrap: break-word;
 }
 
 .health-card__identity {
@@ -464,10 +523,8 @@
 .health-card__notification {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
   color: #7c8581;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.55;
 }
 
 .field-list {
@@ -509,18 +566,29 @@
 
 .health-card__compact-row {
   margin-top: 9rpx;
+  min-height: 70rpx;
 }
 
 .record-compact-row .health-card__identity {
-  max-width: 260rpx;
+  max-width: 230rpx;
 }
 
-.record-compact-row .health-card__time,
+.record-card__details .health-card__time,
 .linked-record__time {
   flex: 0 0 auto;
   color: #7c8581;
   font-size: 21rpx;
   white-space: nowrap;
+}
+
+.record-card__details {
+  display: grid;
+  gap: 2rpx;
+  margin-top: 6rpx;
+}
+
+.record-card__details .health-card__subject {
+  margin-top: 0;
 }
 
 .record-compact-row__open,
@@ -538,18 +606,26 @@
   margin-top: 0;
 }
 
+.reminder-card .card-actions {
+  width: 74rpx;
+  min-width: 74rpx;
+}
+
 .card-button {
-  min-width: 96rpx;
-  padding: 8rpx 16rpx;
-  border-radius: 9rpx;
-  font-size: 21rpx;
-  line-height: 1.4;
+  width: 74rpx;
+  min-width: 74rpx;
+  height: 70rpx;
+  padding: 0;
+  border-radius: 17rpx;
+  font-size: 22rpx;
+  line-height: 70rpx;
 }
 
 .linked-record {
   margin-top: 10rpx;
   padding: 11rpx 13rpx;
-  border-left: 4rpx solid #4f7fa3;
+  border: 1rpx solid #d8e4ec;
+  border-radius: 9rpx;
   background: #eef3f7;
 }
 
@@ -570,7 +646,7 @@
 }
 
 .rule-card {
-  border-left: 6rpx solid #2e6f68;
+  border-color: #d5e2de;
 }
 
 .rule-status {
