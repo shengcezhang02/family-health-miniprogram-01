@@ -32,6 +32,14 @@ test("我和家庭提供 AI 与外部应用入口及完整令牌管理页面", (
     ),
     "utf8",
   );
+  const inviteWxml = readFileSync(
+    join(root, "miniprogram", "pages", "invite", "invite.wxml"),
+    "utf8",
+  );
+  const inviteJs = readFileSync(
+    join(root, "miniprogram", "pages", "invite", "invite.js"),
+    "utf8",
+  );
 
   assert.ok(appJson.pages.includes("pages/external-access/external-access"));
   assert.match(indexWxml, /AI 与外部应用/);
@@ -42,6 +50,14 @@ test("我和家庭提供 AI 与外部应用入口及完整令牌管理页面", (
   assert.match(pageWxml, /复制 Skill/);
   assert.match(pageWxml, /最近 20 次访问/);
   assert.match(pageWxml, /永久撤销这个令牌/);
+  assert.match(pageWxml, /只要令牌所有者仍是家庭成员/);
+  assert.doesNotMatch(pageWxml, /还有.*位成员待确认/);
+  assert.doesNotMatch(pageWxml, /我已了解并确认/);
+  assert.doesNotMatch(pageJs, /getExternalAccessNoticeStatus/);
+  assert.doesNotMatch(pageJs, /acceptExternalAccessNotice/);
+  assert.match(inviteWxml, /外部 AI 与自动化工具/);
+  assert.match(inviteWxml, /external-access-acknowledgement/);
+  assert.match(inviteJs, /externalAccessAcknowledged/);
   assert.match(pageJs, /callExternalAccessApi/);
   assert.doesNotMatch(
     pageJs,

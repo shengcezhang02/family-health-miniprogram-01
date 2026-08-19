@@ -11,6 +11,7 @@ Page({
     invitePreview: null,
     displayName: "",
     profileManagementAllowed: true,
+    externalAccessAcknowledged: false,
     busy: false,
     errorMessage: "",
   },
@@ -174,6 +175,7 @@ Page({
         joinCredential: credential,
         invitePreview: result.invite,
         profileManagementAllowed: true,
+        externalAccessAcknowledged: false,
       });
     } catch (error) {
       this.setData({
@@ -192,6 +194,14 @@ Page({
     });
   },
 
+  onExternalAccessAcknowledgementChange(event) {
+    this.setData({
+      externalAccessAcknowledged:
+        event.detail.value.includes("acknowledged"),
+      errorMessage: "",
+    });
+  },
+
   onDisplayNameInput(event) {
     this.setData({
       displayName: event.detail.value,
@@ -203,6 +213,7 @@ Page({
     this.setData({
       joinCredential: null,
       invitePreview: null,
+      externalAccessAcknowledged: false,
       errorMessage: "",
     });
   },
@@ -221,6 +232,13 @@ Page({
       return;
     }
 
+    if (!this.data.externalAccessAcknowledged) {
+      this.setData({
+        errorMessage: "请先确认你已了解家庭外部 AI 访问权限",
+      });
+      return;
+    }
+
     this.setData({
       busy: true,
       errorMessage: "",
@@ -232,6 +250,7 @@ Page({
         displayName,
         profileManagementAllowed:
           this.data.profileManagementAllowed,
+        externalAccessAcknowledged: true,
       });
       wx.setStorageSync("currentFamilyId", result.family.id);
       wx.reLaunch({

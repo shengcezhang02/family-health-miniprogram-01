@@ -4,6 +4,7 @@ const { createHash, randomUUID } = require("node:crypto");
 const {
   createExternalAccessManagement,
   createExternalBusinessRouter,
+  createExternalReadServices,
   createExternalTokenAuthenticator,
   createExternalTokenSecurity,
   isExternalAccessEnabled,
@@ -17,6 +18,12 @@ const {
 const {
   createExternalAccessFunction,
 } = require("./create-external-access-function");
+const {
+  createCloudExternalReadStore,
+} = require("./create-cloud-external-read-store");
+const {
+  listSystemTemplates,
+} = require("./external-system-templates");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -26,6 +33,7 @@ const db = cloud.database({
   throwOnNotFound: false,
 });
 const tokenStore = createCloudExternalAccessStore(db);
+const externalReadStore = createCloudExternalReadStore(db);
 
 function createStableTokenId({ ownerUserId, requestId }) {
   return createHash("sha256")
@@ -53,6 +61,7 @@ const managementApi = createExternalAccessManagement({
     return { openId: context.OPENID };
   },
   tokenStore,
+  noticeStore: externalReadStore,
   tokenSecurity,
   createId: createStableTokenId,
   now: () => new Date(),
@@ -71,9 +80,13 @@ const tokenAuthenticator = tokenSecurity
     })
   : null;
 
+const readServices = createExternalReadServices({
+  readStore: externalReadStore,
+  listSystemTemplates,
+});
 const router = createExternalBusinessRouter({
   isEnabled: () => isExternalAccessEnabled(process.env),
-  services: {},
+  services: readServices,
 });
 
 const api = createExternalAccessApi({

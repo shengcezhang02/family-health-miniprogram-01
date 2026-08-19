@@ -1,13 +1,13 @@
 const cloud = require("wx-server-sdk");
 const { randomUUID } = require("node:crypto");
 
-const { createFamilyApi } = require("./src/create-family-api");
+const { createFamilyApi } = require("./create-family-api");
 const {
   createCloudFamilyStore,
-} = require("./src/create-cloud-family-store");
+} = require("./create-cloud-family-store");
 const {
   createInviteSecurity,
-} = require("./src/create-invite-security");
+} = require("./create-invite-security");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,

@@ -127,6 +127,23 @@
   line-height: 1.5;
 }
 
+.external-access-acknowledgement {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border: 1rpx solid #d7e2dd;
+  border-radius: 14rpx;
+  background: #f5f8f6;
+}
+
+.external-access-acknowledgement checkbox {
+  flex: 0 0 auto;
+  transform: scale(0.86);
+  transform-origin: top left;
+}
+
 .permission-row {
   display: flex;
   align-items: center;

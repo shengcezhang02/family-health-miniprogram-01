@@ -22,10 +22,14 @@ const {
 const {
   createExternalTokenAuthenticator,
 } = require("./create-external-token-authenticator");
+const {
+  createExternalReadServices,
+} = require("./create-external-read-services");
 
 module.exports = {
   createExternalAccessManagement,
   createExternalBusinessRouter,
+  createExternalReadServices,
   createExternalTokenAuthenticator,
   createExternalTokenSecurity,
   EXTERNAL_ACCESS_ACTIONS,

@@ -9,6 +9,9 @@ const ERROR_STATUS = Object.freeze({
   HTTPS_REQUIRED: 426,
   INVALID_CREDENTIAL: 401,
   SERVICE_NOT_READY: 503,
+  FAMILY_ACCESS_DENIED: 403,
+  FAMILY_EXTERNAL_ACCESS_NOT_READY: 403,
+  RESOURCE_NOT_FOUND: 404,
 });
 
 function response(statusCode, body) {
@@ -286,7 +289,7 @@ function createExternalAccessApi({
 
       try {
         const accessedAt = now();
-        await recordAccess(
+        const accessRecordResult = await recordAccess(
           createAccessEvent({
             eventId: createEventId(),
             actor,
@@ -299,6 +302,22 @@ function createExternalAccessApi({
             accessedAt,
           }),
         );
+
+        if (accessRecordResult?.outcome === "token-unavailable") {
+          return errorResponse(
+            401,
+            request.requestId,
+            "INVALID_CREDENTIAL",
+            "访问凭证无效或已撤销",
+          );
+        }
+
+        if (
+          accessRecordResult?.outcome &&
+          accessRecordResult.outcome !== "recorded"
+        ) {
+          throw new Error("Unexpected access record outcome");
+        }
       } catch (error) {
         try {
           reportError("record-access", error);

@@ -258,6 +258,44 @@ test("访问历史写入失败时不返回可能已读取的业务数据", async
   assert.deepEqual(reports, ["record-access"]);
 });
 
+test("令牌在读取期间被撤销时丢弃业务数据并返回未认证", async () => {
+  const api = createExternalAccessApi({
+    isEnabled: () => true,
+    authenticateAccessToken: async () => ({
+      userId: "user-revoked-during-read",
+      externalTokenId: "token-revoked-during-read",
+      permissionPreset: "experimental_full_family_health_v1",
+    }),
+    dispatchBusinessAction: async (request) => ({
+      ok: true,
+      requestId: request.requestId,
+      data: { privateHealthValue: 36.8 },
+    }),
+    recordAccess: async () => ({ outcome: "token-unavailable" }),
+    createEventId: () => "event-revoked-during-read",
+    now: () => new Date("2026-08-19T03:50:00.000Z"),
+  });
+
+  const response = await api.handle({
+    httpMethod: "POST",
+    path: "/v1/action",
+    headers: {
+      "x-forwarded-proto": "https",
+      authorization: "Bearer fhp_hidden.hidden",
+    },
+    body: JSON.stringify({
+      action: "getContext",
+      requestId: "request-revoked-during-read",
+      payload: {},
+    }),
+  });
+  const body = parseResponse(response);
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(body.error.code, "INVALID_CREDENTIAL");
+  assert.equal(JSON.stringify(body).includes("36.8"), false);
+});
+
 test("云函数部署目录自带共享业务模块且默认不开放入口", async () => {
   const originalValue = process.env.EXTERNAL_ACCESS_ENABLED;
   delete process.env.EXTERNAL_ACCESS_ENABLED;

@@ -115,11 +115,28 @@
         />
       </view>
 
+      <checkbox-group bindchange="onExternalAccessAcknowledgementChange">
+        <label class="external-access-acknowledgement">
+          <checkbox
+            id="external-access-acknowledgement"
+            value="acknowledged"
+            checked="{{externalAccessAcknowledged}}"
+            color="#2f765e"
+          />
+          <view>
+            <view class="permission-row__title">外部 AI 与自动化工具</view>
+            <view class="permission-row__description">
+              我已了解：家庭成员可以创建永久令牌，让外部工具读取和修改本家庭所有人的记录、提醒、周期规则和模板；删除只会进入回收站，令牌不能管理成员、健康档案或回收站。
+            </view>
+          </view>
+        </label>
+      </checkbox-group>
+
       <button
         id="confirm-join-button"
         class="primary-button"
         loading="{{busy}}"
-        disabled="{{busy}}"
+        disabled="{{busy || !externalAccessAcknowledged}}"
         bindtap="onJoinFamily"
       >
         确认加入

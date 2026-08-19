@@ -16,6 +16,7 @@
     <view class="permission-row"><text class="permission-row__label">可修改</text><text>记录、提醒、周期规则和模板</text></view>
     <view class="permission-row"><text class="permission-row__label">可删除</text><text>只允许移入回收站</text></view>
     <view class="permission-row permission-row--blocked"><text class="permission-row__label">不可操作</text><text>回收站、成员和角色、健康档案、邀请与家庭解散</text></view>
+    <view class="risk-card__notice">只要令牌所有者仍是家庭成员，就能访问该家庭所有成员的日常健康数据，无需其他成员逐人确认。</view>
     <view class="risk-card__notice">含令牌 Skill 与令牌本身一样敏感；撤销不能收回外部工具已经读取的数据。</view>
   </view>
 

@@ -37,6 +37,7 @@ function createInMemoryCloudDatabase(seed = {}) {
           );
         const orders = [];
         let maximum;
+        let skipped = 0;
         const queryBuilder = {
           orderBy(field, direction) {
             orders.push({ field, direction });
@@ -44,6 +45,10 @@ function createInMemoryCloudDatabase(seed = {}) {
           },
           limit(limit) {
             maximum = limit;
+            return queryBuilder;
+          },
+          skip(count) {
+            skipped = count;
             return queryBuilder;
           },
           async get() {
@@ -67,10 +72,11 @@ function createInMemoryCloudDatabase(seed = {}) {
 
               return 0;
             });
+            const skippedResult = result.slice(skipped);
             const limited =
               maximum === undefined
-                ? result
-                : result.slice(0, maximum);
+                ? skippedResult
+                : skippedResult.slice(0, maximum);
             return {
               data: limited.map((document) =>
                 structuredClone(document),

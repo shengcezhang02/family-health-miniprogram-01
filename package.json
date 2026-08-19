@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build:cloudfunctions": "npm run build:external-business && npm run build:family-api",
     "build:external-business": "node scripts/sync-external-business.js",
+    "build:family-api": "node scripts/sync-family-api-runtime.js",
     "test": "node --test test/*.test.js"
   }
 }

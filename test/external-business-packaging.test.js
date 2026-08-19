@@ -18,6 +18,7 @@ test("external-access-api 中的共享业务模块与唯一源码保持一致", 
   const copiedFiles = new Map([
     ["create-external-access-management.js", "create-external-access-management.js"],
     ["create-external-business-router.js", "create-external-business-router.js"],
+    ["create-external-read-services.js", "create-external-read-services.js"],
     ["create-external-token-authenticator.js", "create-external-token-authenticator.js"],
     ["create-external-token-security.js", "create-external-token-security.js"],
     ["external-access-feature.js", "external-access-feature.js"],
@@ -33,4 +34,13 @@ test("external-access-api 中的共享业务模块与唯一源码保持一致", 
       `${sourceFileName} 应先执行 npm run build:external-business 再部署`,
     );
   }
+
+
+  assert.deepEqual(
+    readFileSync(
+      join(root, "cloudfunctions", "template-api", "src", "system-templates.js"),
+    ),
+    readFileSync(join(packagedDirectory, "external-system-templates.js")),
+    "系统模板应从当前模板业务源码同步后再部署",
+  );
 });

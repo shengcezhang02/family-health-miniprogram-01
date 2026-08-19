@@ -66,6 +66,7 @@ function createFamilyScenario() {
         data: {
           token: invite.data.invite.token,
           profileManagementAllowed: true,
+          externalAccessAcknowledged: true,
           ...(displayName ? { displayName } : {}),
         },
       });
@@ -499,6 +500,7 @@ test("使用邀请会建立唯一成员关系并在同一事务消费邀请", as
     data: {
       shortCode: "ef34gh",
       profileManagementAllowed: true,
+      externalAccessAcknowledged: true,
     },
   });
   const joinedAgain = await api.handle({
@@ -507,6 +509,7 @@ test("使用邀请会建立唯一成员关系并在同一事务消费邀请", as
     data: {
       shortCode: "EF34GH",
       profileManagementAllowed: true,
+      externalAccessAcknowledged: true,
     },
   });
   const bootstrapped = await api.handle({
@@ -664,6 +667,7 @@ test("现有有效成员使用同家庭邀请时不会改变角色或消耗邀�
     data: {
       token: "self-join-token",
       profileManagementAllowed: true,
+      externalAccessAcknowledged: true,
     },
   });
   const bootstrapped = await api.handle({
@@ -727,6 +731,28 @@ test("bootstrap 不信任请求中伪造的身份和角色", async () => {
     error: {
       code: "UNAUTHENTICATED",
       message: "无法确认微信身份，请重新进入小程序",
+    },
+  });
+});
+
+test("加入家庭必须明确确认外部 AI 可以访问家庭健康数据", async () => {
+  const api = createFamilyApi();
+
+  const result = await api.handle({
+    action: "joinFamily",
+    requestId: "req-join-without-external-access-notice",
+    data: {
+      token: "some-token",
+      profileManagementAllowed: true,
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    requestId: "req-join-without-external-access-notice",
+    error: {
+      code: "INVALID_ARGUMENT",
+      message: "请先确认你已了解家庭外部 AI 访问权限",
     },
   });
 });

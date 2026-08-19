@@ -1,4 +1,5 @@
 const {
+  EXTERNAL_ACCESS_NOTICE_VERSION,
   EXTERNAL_ACCESS_PERMISSION_PRESET,
 } = require("./external-access-policy");
 const {
@@ -50,6 +51,7 @@ function toAccessSummary(event) {
 function createExternalAccessManagement({
   getCallerIdentity,
   tokenStore,
+  noticeStore,
   tokenSecurity,
   createId,
   now,
@@ -100,6 +102,78 @@ function createExternalAccessManagement({
   }
 
   const actions = {
+    async acceptExternalAccessNotice(data) {
+      if (data.acknowledged !== true) {
+        throw new ManagementError(
+          "NOTICE_ACKNOWLEDGEMENT_REQUIRED",
+          "请先确认你已了解家庭外部访问权限",
+        );
+      }
+
+      if (
+        typeof noticeStore?.acceptExternalAccessNotice !== "function"
+      ) {
+        throw new ManagementError(
+          "SERVICE_NOT_READY",
+          "家庭外部访问告知服务尚未配置",
+        );
+      }
+
+      const user = await getCaller();
+      const result = await noticeStore.acceptExternalAccessNotice({
+        userId: user._id,
+        noticeVersion: EXTERNAL_ACCESS_NOTICE_VERSION,
+        acceptedAt: now(),
+      });
+
+      return {
+        noticeVersion: EXTERNAL_ACCESS_NOTICE_VERSION,
+        updatedFamilyCount: result.updatedCount,
+      };
+    },
+
+    async getExternalAccessNoticeStatus() {
+      if (
+        typeof noticeStore?.listFamilyContextsByUserId !== "function"
+      ) {
+        throw new ManagementError(
+          "SERVICE_NOT_READY",
+          "家庭外部访问告知服务尚未配置",
+        );
+      }
+
+      const user = await getCaller();
+      const result = await noticeStore.listFamilyContextsByUserId(
+        user._id,
+      );
+      const families = result.familyContexts.map((context) => {
+        const acceptedByCaller =
+          context.callerMembership.externalAccessNoticeVersion ===
+          EXTERNAL_ACCESS_NOTICE_VERSION;
+        const waitingForMemberCount = context.activeMemberships.filter(
+          (membership) =>
+            membership.externalAccessNoticeVersion !==
+            EXTERNAL_ACCESS_NOTICE_VERSION,
+        ).length;
+
+        return {
+          id: context.family._id,
+          name: context.family.name,
+          acceptedByCaller,
+          externalAccessReady: waitingForMemberCount === 0,
+          waitingForMemberCount,
+        };
+      });
+
+      return {
+        noticeVersion: EXTERNAL_ACCESS_NOTICE_VERSION,
+        allAcceptedByCaller: families.every(
+          (family) => family.acceptedByCaller,
+        ),
+        families,
+      };
+    },
+
     async createToken(data, request) {
       const name = data.name?.trim();
 

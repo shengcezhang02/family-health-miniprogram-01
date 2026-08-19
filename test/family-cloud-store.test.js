@@ -43,6 +43,8 @@ test("CloudBase 加入家庭事务同时保存成员关系和用户显示名称"
     userId: "user-1",
     displayName: "爸爸",
     profileManagementAllowed: true,
+    externalAccessNoticeVersion:
+      "experimental_full_family_health_v1",
     membershipId: "membership-1",
     timestamp,
   });
@@ -52,6 +54,16 @@ test("CloudBase 加入家庭事务同时保存成员关系和用户显示名称"
   assert.equal(
     db.read("family_memberships", "membership-1").status,
     "active",
+  );
+  assert.equal(
+    db.read("family_memberships", "membership-1")
+      .externalAccessNoticeVersion,
+    "experimental_full_family_health_v1",
+  );
+  assert.deepEqual(
+    db.read("family_memberships", "membership-1")
+      .externalAccessNoticeAcceptedAt,
+    timestamp,
   );
   assert.equal(db.read("family_invites", "invite-1").status, "used");
 });

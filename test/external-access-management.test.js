@@ -9,7 +9,7 @@ const {
   createInMemoryExternalAccessStore,
 } = require("./support/create-in-memory-external-access-store");
 
-function createFixture() {
+function createFixture({ noticeStore } = {}) {
   const user = {
     _id: "user-token-owner",
     wechatOpenId: "openid-token-owner",
@@ -35,6 +35,7 @@ function createFixture() {
     createId: () => "token-01",
     now: () => new Date("2026-08-19T02:00:00.000Z"),
     externalBaseUrl: "https://family-health.example.com",
+    noticeStore,
   });
 
   return {
@@ -45,6 +46,118 @@ function createFixture() {
     },
   };
 }
+
+test("用户可以查看每个家庭的外部访问告知状态", async () => {
+  const { api } = createFixture({
+    noticeStore: {
+      async listFamilyContextsByUserId(userId) {
+        assert.equal(userId, "user-token-owner");
+        return {
+          user: {
+            _id: "user-token-owner",
+            displayName: "小林",
+          },
+          familyContexts: [
+            {
+              family: { _id: "family-ready", name: "已就绪家庭" },
+              callerMembership: {
+                userId: "user-token-owner",
+                externalAccessNoticeVersion:
+                  "experimental_full_family_health_v1",
+              },
+              activeMemberships: [
+                {
+                  userId: "user-token-owner",
+                  externalAccessNoticeVersion:
+                    "experimental_full_family_health_v1",
+                },
+              ],
+            },
+            {
+              family: { _id: "family-waiting", name: "等待确认家庭" },
+              callerMembership: {
+                userId: "user-token-owner",
+              },
+              activeMemberships: [
+                { userId: "user-token-owner" },
+                { userId: "user-2" },
+              ],
+            },
+          ],
+        };
+      },
+    },
+  });
+
+  const result = await api.handle({
+    action: "getExternalAccessNoticeStatus",
+    requestId: "request-notice-status",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    requestId: "request-notice-status",
+    data: {
+      noticeVersion: "experimental_full_family_health_v1",
+      allAcceptedByCaller: false,
+      families: [
+        {
+          id: "family-ready",
+          name: "已就绪家庭",
+          acceptedByCaller: true,
+          externalAccessReady: true,
+          waitingForMemberCount: 0,
+        },
+        {
+          id: "family-waiting",
+          name: "等待确认家庭",
+          acceptedByCaller: false,
+          externalAccessReady: false,
+          waitingForMemberCount: 2,
+        },
+      ],
+    },
+  });
+});
+
+test("用户明确确认后只更新自己全部有效家庭的告知版本", async () => {
+  const calls = [];
+  const noticeStore = {
+    async acceptExternalAccessNotice(input) {
+      calls.push(input);
+      return { updatedCount: 2 };
+    },
+    async listFamilyContextsByUserId() {
+      return {
+        user: { _id: "user-token-owner", displayName: "小林" },
+        familyContexts: [],
+      };
+    },
+  };
+  const { api } = createFixture({ noticeStore });
+
+  const result = await api.handle({
+    action: "acceptExternalAccessNotice",
+    requestId: "request-accept-notice",
+    data: { acknowledged: true },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    requestId: "request-accept-notice",
+    data: {
+      noticeVersion: "experimental_full_family_health_v1",
+      updatedFamilyCount: 2,
+    },
+  });
+  assert.deepEqual(calls, [
+    {
+      userId: "user-token-owner",
+      noticeVersion: "experimental_full_family_health_v1",
+      acceptedAt: new Date("2026-08-19T02:00:00.000Z"),
+    },
+  ]);
+});
 
 test("用户创建永久令牌后列表只展示摘要，存储中没有原始 secret", async () => {
   const { api, tokenStore } = createFixture();
