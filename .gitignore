@@ -5,4 +5,5 @@ coverage/
 Thumbs.db
 project.private.config.json
 miniprogram/envList.js
+.codex-tmp/
 *.log

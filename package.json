@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build:external-business": "node scripts/sync-external-business.js",
     "test": "node --test test/*.test.js"
   }
 }

@@ -4,13 +4,14 @@
 
 ## 当前阶段
 
-[M1 第一个家庭](docs/MILESTONES.md#m1第一个家庭)已完成并通过验收。
-M2“邀请与多家庭”已完成，并通过两个微信账号的真机邀请加入验收。
-当前正在开发 M3“全局健康档案与家庭代管”。
+M1 至 M11 已完成，当前进入 AI 外部访问实验功能。
+
+[AI-M0 共享业务层和实验开关](docs/AI-M0-ACCEPTANCE.md)建立 HTTPS 外部入口的关闭态骨架；在 AI-M1 完成永久令牌认证前，外部入口默认不可用。
 
 ## 本地验证
 
 ```bash
+npm run build:external-business
 npm test
 ```
 
