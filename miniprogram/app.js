@@ -171,6 +171,16 @@ App({
     );
   },
 
+  async callExternalAccessApi(action, data, requestId, options) {
+    return this._callApi(
+      "external-access-api",
+      action,
+      data,
+      requestId,
+      options,
+    );
+  },
+
   async callQueryApi(action, data, options) {
     return this.callCloudApi(
       "query-api",

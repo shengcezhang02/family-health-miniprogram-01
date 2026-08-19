@@ -83,28 +83,47 @@ test("HTTPS 入口只接受 POST /v1/action 和 JSON 请求体", async () => {
   assert.equal(parseResponse(invalidJson).error.code, "INVALID_REQUEST");
 });
 
-test("合法 HTTPS action 由共享业务路由处理且响应禁止缓存", async () => {
+test("有效 Bearer 调用业务后只记录不含健康值的访问摘要", async () => {
   const requests = [];
+  const events = [];
+  const actor = {
+    userId: "user-token-owner",
+    externalTokenId: "token-1",
+    permissionPreset: "experimental_full_family_health_v1",
+  };
   const api = createExternalAccessApi({
     isEnabled: () => true,
-    dispatchBusinessAction: async (request) => {
-      requests.push(request);
+    authenticateAccessToken: async () => actor,
+    dispatchBusinessAction: async (request, receivedActor) => {
+      requests.push({ request, actor: receivedActor });
       return {
         ok: true,
         requestId: request.requestId,
         data: { status: "ready" },
       };
     },
+    recordAccess: async (event) => events.push(event),
+    createEventId: () => "event-1",
+    now: () => new Date("2026-08-19T03:00:00.000Z"),
   });
 
   const response = await api.handle({
     httpMethod: "POST",
     path: "/v1/action",
-    headers: { "x-forwarded-proto": "https" },
+    headers: {
+      "x-forwarded-proto": "https",
+      authorization: "Bearer fhp_token-1.secret-placeholder",
+    },
     body: JSON.stringify({
-      action: "getContext",
+      action: "updateHealthItem",
       requestId: "request-https",
-      payload: {},
+      payload: {
+        familyId: "family-1",
+        itemType: "record",
+        itemId: "record-1",
+        values: { temperature: 36.7 },
+        remark: "不应进入历史的备注",
+      },
     }),
   });
 
@@ -118,11 +137,125 @@ test("合法 HTTPS action 由共享业务路由处理且响应禁止缓存", asy
   });
   assert.deepEqual(requests, [
     {
-      action: "getContext",
-      requestId: "request-https",
-      payload: {},
+      request: {
+        action: "updateHealthItem",
+        requestId: "request-https",
+        payload: {
+          familyId: "family-1",
+          itemType: "record",
+          itemId: "record-1",
+          values: { temperature: 36.7 },
+          remark: "不应进入历史的备注",
+        },
+      },
+      actor,
     },
   ]);
+  assert.deepEqual(events, [
+    {
+      _id: "event-1",
+      tokenId: "token-1",
+      ownerUserId: "user-token-owner",
+      requestId: "request-https",
+      action: "updateHealthItem",
+      familyId: "family-1",
+      resourceType: "record",
+      resourceId: "record-1",
+      ok: true,
+      resultCode: "OK",
+      durationMs: 0,
+      accessedAt: new Date("2026-08-19T03:00:00.000Z"),
+    },
+  ]);
+  assert.equal(JSON.stringify(events).includes("36.7"), false);
+  assert.equal(JSON.stringify(events).includes("不应进入历史的备注"), false);
+  assert.equal(JSON.stringify(events).includes("secret-placeholder"), false);
+});
+
+test("有效令牌遇到业务异常时记录脱敏失败并返回统一错误", async () => {
+  const events = [];
+  const reports = [];
+  const api = createExternalAccessApi({
+    isEnabled: () => true,
+    authenticateAccessToken: async () => ({
+      userId: "user-safe-error",
+      externalTokenId: "token-safe-error",
+      permissionPreset: "experimental_full_family_health_v1",
+    }),
+    dispatchBusinessAction: async () => {
+      throw new Error("不应返回的体温 39.2 和内部路径");
+    },
+    recordAccess: async (event) => events.push(event),
+    createEventId: () => "event-safe-error",
+    now: () => new Date("2026-08-19T03:30:00.000Z"),
+    reportError: (stage) => reports.push(stage),
+  });
+
+  const response = await api.handle({
+    httpMethod: "POST",
+    path: "/v1/action",
+    headers: {
+      "x-forwarded-proto": "https",
+      authorization: "Bearer fhp_hidden.hidden",
+    },
+    body: JSON.stringify({
+      action: "getContext",
+      requestId: "request-safe-error",
+      payload: {},
+    }),
+  });
+  const body = parseResponse(response);
+
+  assert.equal(response.statusCode, 500);
+  assert.equal(body.error.code, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(body).includes("39.2"), false);
+  assert.deepEqual(reports, ["dispatch"]);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].resultCode, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(events).includes("39.2"), false);
+});
+
+test("访问历史写入失败时不返回可能已读取的业务数据", async () => {
+  const reports = [];
+  const api = createExternalAccessApi({
+    isEnabled: () => true,
+    authenticateAccessToken: async () => ({
+      userId: "user-log-failure",
+      externalTokenId: "token-log-failure",
+      permissionPreset: "experimental_full_family_health_v1",
+    }),
+    dispatchBusinessAction: async (request) => ({
+      ok: true,
+      requestId: request.requestId,
+      data: { privateValue: "不应返回" },
+    }),
+    recordAccess: async () => {
+      throw new Error("history unavailable");
+    },
+    createEventId: () => "event-log-failure",
+    now: () => new Date("2026-08-19T03:40:00.000Z"),
+    reportError: (stage) => reports.push(stage),
+  });
+
+  const response = await api.handle({
+    httpMethod: "POST",
+    path: "/v1/action",
+    headers: {
+      "x-forwarded-proto": "https",
+      authorization: "Bearer fhp_hidden.hidden",
+    },
+    body: JSON.stringify({
+      action: "getContext",
+      requestId: "request-log-failure",
+      payload: {},
+    }),
+  });
+  const body = parseResponse(response);
+
+  assert.equal(response.statusCode, 500);
+  assert.equal(body.error.code, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(body).includes("不应返回"), false);
+  assert.deepEqual(reports, ["record-access"]);
 });
 
 test("云函数部署目录自带共享业务模块且默认不开放入口", async () => {

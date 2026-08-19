@@ -16,7 +16,10 @@ const targetDirectory = join(
 mkdirSync(targetDirectory, { recursive: true });
 
 const copiedFiles = new Map([
+  ["create-external-access-management.js", "create-external-access-management.js"],
   ["create-external-business-router.js", "create-external-business-router.js"],
+  ["create-external-token-authenticator.js", "create-external-token-authenticator.js"],
+  ["create-external-token-security.js", "create-external-token-security.js"],
   ["external-access-feature.js", "external-access-feature.js"],
   ["external-access-policy.js", "external-access-policy.js"],
   ["index.js", "family-health-business.js"],

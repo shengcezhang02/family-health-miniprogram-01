@@ -1,0 +1,21 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "token_accessed",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "tokenId",
+            "Direction": "1"
+          },
+          {
+            "Name": "accessedAt",
+            "Direction": "-1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}

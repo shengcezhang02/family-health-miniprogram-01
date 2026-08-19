@@ -17,7 +17,8 @@
     "pages/analysis-detail/analysis-detail",
     "pages/analysis-data/analysis-data",
     "pages/care-share-editor/care-share-editor",
-    "pages/care-share/care-share"
+    "pages/care-share/care-share",
+    "pages/external-access/external-access"
   ],
   "tabBar": {
     "custom": true,

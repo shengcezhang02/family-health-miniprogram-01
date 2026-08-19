@@ -35,29 +35,51 @@ function createInMemoryCloudDatabase(seed = {}) {
           [...documents.values()].filter((document) =>
             matches(document, query),
           );
-
-        return {
+        const orders = [];
+        let maximum;
+        const queryBuilder = {
+          orderBy(field, direction) {
+            orders.push({ field, direction });
+            return queryBuilder;
+          },
+          limit(limit) {
+            maximum = limit;
+            return queryBuilder;
+          },
           async get() {
+            const result = getMatches().sort((left, right) => {
+              for (const { field, direction } of orders) {
+                const leftValue = left[field];
+                const rightValue = right[field];
+                const difference =
+                  leftValue instanceof Date && rightValue instanceof Date
+                    ? leftValue.getTime() - rightValue.getTime()
+                    : leftValue < rightValue
+                      ? -1
+                      : leftValue > rightValue
+                        ? 1
+                        : 0;
+
+                if (difference !== 0) {
+                  return direction === "desc" ? -difference : difference;
+                }
+              }
+
+              return 0;
+            });
+            const limited =
+              maximum === undefined
+                ? result
+                : result.slice(0, maximum);
             return {
-              data: getMatches().map((document) =>
+              data: limited.map((document) =>
                 structuredClone(document),
               ),
             };
           },
-          limit(limit) {
-            return {
-              async get() {
-                return {
-                  data: getMatches()
-                    .slice(0, limit)
-                    .map((document) =>
-                      structuredClone(document),
-                    ),
-                };
-              },
-            };
-          },
         };
+
+        return queryBuilder;
       },
       doc(id) {
         return {

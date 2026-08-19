@@ -445,6 +445,37 @@
   border: 0;
 }
 
+.section-label {
+  margin-top: 30rpx;
+  color: #6f7a75;
+  font-size: var(--display-meta-size);
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.connection-setting {
+  margin-top: 12rpx;
+}
+
+.connection-setting__icon {
+  display: flex;
+  width: 58rpx;
+  height: 58rpx;
+  flex: 0 0 58rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10rpx;
+  color: #ffffff;
+  font-size: 21rpx;
+  font-weight: 800;
+  background: linear-gradient(145deg, #4d6f8d, #2e6f68);
+}
+
+.connection-setting__body {
+  min-width: 0;
+  flex: 1;
+}
+
 .display-setting {
   margin-top: 28rpx;
   padding: var(--display-card-padding);

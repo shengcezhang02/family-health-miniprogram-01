@@ -282,6 +282,12 @@ Page({
     });
   },
 
+  onOpenExternalAccess() {
+    wx.navigateTo({
+      url: "/pages/external-access/external-access",
+    });
+  },
+
   onOpenRecords() {
     const family = this.data.currentFamily;
 

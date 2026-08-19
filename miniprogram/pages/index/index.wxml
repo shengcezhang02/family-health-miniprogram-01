@@ -206,6 +206,22 @@
       <view class="manage-family-button__arrow">›</view>
     </view>
 
+    <view class="section-label">数据与连接</view>
+    <view
+      id="open-external-access-button"
+      class="manage-family-button connection-setting"
+      bindtap="onOpenExternalAccess"
+    >
+      <view class="connection-setting__icon">AI</view>
+      <view class="connection-setting__body">
+        <view class="manage-family-button__title">AI 与外部应用</view>
+        <view class="manage-family-button__description">
+          允许外部 AI 通过永久令牌管理家庭健康数据
+        </view>
+      </view>
+      <view class="manage-family-button__arrow">›</view>
+    </view>
+
     <view class="empty-card empty-card--records">
       <view class="empty-card__icon">记</view>
       <view class="empty-card__title">家人的健康记录</view>

@@ -16,7 +16,10 @@ test("external-access-api 中的共享业务模块与唯一源码保持一致", 
     "external-access-api",
   );
   const copiedFiles = new Map([
+    ["create-external-access-management.js", "create-external-access-management.js"],
     ["create-external-business-router.js", "create-external-business-router.js"],
+    ["create-external-token-authenticator.js", "create-external-token-authenticator.js"],
+    ["create-external-token-security.js", "create-external-token-security.js"],
     ["external-access-feature.js", "external-access-feature.js"],
     ["external-access-policy.js", "external-access-policy.js"],
     ["index.js", "family-health-business.js"],

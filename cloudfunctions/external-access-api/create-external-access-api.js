@@ -7,6 +7,7 @@ const ERROR_STATUS = Object.freeze({
   METHOD_NOT_ALLOWED: 405,
   NOT_FOUND: 404,
   HTTPS_REQUIRED: 426,
+  INVALID_CREDENTIAL: 401,
   SERVICE_NOT_READY: 503,
 });
 
@@ -100,9 +101,70 @@ function validateActionRequest(request) {
   };
 }
 
+function safeIdentifier(value, maxLength = 120) {
+  return typeof value === "string" && value.length <= maxLength
+    ? value
+    : undefined;
+}
+
+function createAccessEvent({
+  eventId,
+  actor,
+  request,
+  result,
+  durationMs,
+  accessedAt,
+}) {
+  const payload = request.payload || {};
+  const resourceId = [
+    payload.itemId,
+    payload.recordId,
+    payload.reminderId,
+    payload.recurringRuleId,
+    payload.ruleId,
+    payload.templateId,
+  ]
+    .map((value) => safeIdentifier(value))
+    .find(Boolean);
+  const event = {
+    _id: eventId,
+    tokenId: actor.externalTokenId,
+    ownerUserId: actor.userId,
+    requestId: request.requestId,
+    action: request.action,
+    ok: result?.ok === true,
+    resultCode: result?.ok
+      ? "OK"
+      : result?.error?.code || "INTERNAL_ERROR",
+    durationMs,
+    accessedAt,
+  };
+  const familyId = safeIdentifier(payload.familyId);
+  const resourceType = safeIdentifier(payload.itemType, 40);
+
+  if (familyId) {
+    event.familyId = familyId;
+  }
+
+  if (resourceType) {
+    event.resourceType = resourceType;
+  }
+
+  if (resourceId) {
+    event.resourceId = resourceId;
+  }
+
+  return event;
+}
+
 function createExternalAccessApi({
   isEnabled,
+  authenticateAccessToken,
   dispatchBusinessAction,
+  recordAccess,
+  createEventId = () => undefined,
+  now = () => new Date(),
+  reportError = () => {},
 } = {}) {
   if (
     typeof isEnabled !== "function" ||
@@ -164,7 +226,90 @@ function createExternalAccessApi({
         );
       }
 
-      const result = await dispatchBusinessAction(request);
+      if (
+        typeof authenticateAccessToken !== "function" ||
+        typeof recordAccess !== "function"
+      ) {
+        return errorResponse(
+          503,
+          request.requestId,
+          "SERVICE_NOT_READY",
+          "外部访问服务尚未配置完成",
+        );
+      }
+
+      let actor;
+
+      try {
+        actor = await authenticateAccessToken(
+          getHeader(event.headers, "authorization"),
+        );
+      } catch (error) {
+        try {
+          reportError("authenticate", error);
+        } catch {}
+        return errorResponse(
+          500,
+          request.requestId,
+          "INTERNAL_ERROR",
+          "服务暂时不可用，请稍后重试",
+        );
+      }
+
+      if (actor?.ok === false || !actor?.externalTokenId) {
+        return errorResponse(
+          401,
+          request.requestId,
+          "INVALID_CREDENTIAL",
+          "访问凭证无效或已撤销",
+        );
+      }
+
+      const startedAt = now();
+      let result;
+
+      try {
+        result = await dispatchBusinessAction(request, actor);
+      } catch (error) {
+        try {
+          reportError("dispatch", error);
+        } catch {}
+        result = {
+          ok: false,
+          requestId: request.requestId,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "服务暂时不可用，请稍后重试",
+          },
+        };
+      }
+
+      try {
+        const accessedAt = now();
+        await recordAccess(
+          createAccessEvent({
+            eventId: createEventId(),
+            actor,
+            request,
+            result,
+            durationMs: Math.max(
+              0,
+              accessedAt.getTime() - startedAt.getTime(),
+            ),
+            accessedAt,
+          }),
+        );
+      } catch (error) {
+        try {
+          reportError("record-access", error);
+        } catch {}
+        return errorResponse(
+          500,
+          request.requestId,
+          "INTERNAL_ERROR",
+          "服务暂时不可用，请稍后重试",
+        );
+      }
 
       if (result?.ok) {
         return response(200, result);

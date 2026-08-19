@@ -1,0 +1,168 @@
+<view class="external-shell {{displaySizeClass}}">
+  <view class="page-heading">
+    <view class="page-heading__eyebrow">DATA · CONNECTIONS</view>
+    <view class="page-heading__row">
+      <view class="page-heading__title">AI 与外部应用</view>
+      <view class="experiment-badge">快速开发版</view>
+    </view>
+    <view class="page-heading__description">
+      永久令牌可以让你选择的 AI、Agent 或脚本管理家庭健康数据，直到你主动撤销。
+    </view>
+  </view>
+
+  <view class="risk-card">
+    <view class="risk-card__title">固定权限范围</view>
+    <view class="permission-row"><text class="permission-row__label">可读取</text><text>全部有效家庭、成员、记录、提醒、周期规则和模板</text></view>
+    <view class="permission-row"><text class="permission-row__label">可修改</text><text>记录、提醒、周期规则和模板</text></view>
+    <view class="permission-row"><text class="permission-row__label">可删除</text><text>只允许移入回收站</text></view>
+    <view class="permission-row permission-row--blocked"><text class="permission-row__label">不可操作</text><text>回收站、成员和角色、健康档案、邀请与家庭解散</text></view>
+    <view class="risk-card__notice">含令牌 Skill 与令牌本身一样敏感；撤销不能收回外部工具已经读取的数据。</view>
+  </view>
+
+  <view wx:if="{{status === 'loading'}}" class="state-card">正在读取令牌…</view>
+  <view wx:elif="{{status === 'error'}}" class="state-card state-card--error">
+    <view>{{errorMessage}}</view>
+    <button class="secondary-button" bindtap="onRetry">重新加载</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorMessage}}" class="inline-error">{{errorMessage}}</view>
+
+    <button
+      wx:if="{{!showCreateForm}}"
+      id="create-token-button"
+      class="primary-button"
+      bindtap="onShowCreateForm"
+    >创建永久令牌</button>
+
+    <view wx:if="{{showCreateForm}}" class="create-card">
+      <view class="section-title">创建永久令牌</view>
+      <view class="field-label">令牌名称</view>
+      <input
+        id="token-name-input"
+        class="text-input"
+        maxlength="40"
+        value="{{tokenName}}"
+        placeholder="例如：我的 Codex"
+        bindinput="onTokenNameInput"
+      />
+      <checkbox-group bindchange="onRiskAcknowledgementChange">
+        <label class="risk-checkbox">
+          <checkbox value="acknowledged" checked="{{riskAcknowledged}}" color="#2e6f68" />
+          <text>我已了解此永久令牌可以读取和修改我全部有效家庭内所有成员的日常健康数据，直到我主动撤销。</text>
+        </label>
+      </checkbox-group>
+      <button
+        id="confirm-create-token-button"
+        class="primary-button"
+        loading="{{creating}}"
+        disabled="{{creating || !riskAcknowledged}}"
+        bindtap="onCreateToken"
+      >创建永久令牌</button>
+      <button class="text-button" disabled="{{creating}}" bindtap="onHideCreateForm">取消</button>
+    </view>
+
+    <view class="section-heading">
+      <view class="section-title">使用中的令牌</view>
+      <view class="section-count">{{activeTokens.length}}</view>
+    </view>
+    <view wx:if="{{activeTokens.length === 0}}" class="empty-state">还没有永久令牌。创建后可以复制给支持 curl 的 AI 使用。</view>
+    <view
+      wx:for="{{activeTokens}}"
+      wx:key="id"
+      class="token-card"
+      data-token-id="{{item.id}}"
+      bindtap="onOpenToken"
+    >
+      <view class="token-card__top">
+        <view class="token-card__name">{{item.name}}</view>
+        <view class="status-badge status-badge--active">使用中</view>
+      </view>
+      <view class="token-card__meta">永久 · 全家庭健康数据 · {{item.credentialHint}}</view>
+      <view class="token-card__time">最近访问：{{item.lastUsedText}}</view>
+    </view>
+
+    <button
+      wx:if="{{revokedTokens.length > 0}}"
+      class="revoked-toggle"
+      bindtap="onToggleRevoked"
+    >
+      已撤销（{{revokedTokens.length}}）
+      <text>{{showRevoked ? '收起' : '展开'}}</text>
+    </button>
+    <view wx:if="{{showRevoked}}">
+      <view
+        wx:for="{{revokedTokens}}"
+        wx:key="id"
+        class="token-card token-card--revoked"
+        data-token-id="{{item.id}}"
+        bindtap="onOpenToken"
+      >
+        <view class="token-card__top">
+          <view class="token-card__name">{{item.name}}</view>
+          <view class="status-badge">已撤销</view>
+        </view>
+        <view class="token-card__meta">{{item.credentialHint}} · 不可恢复</view>
+        <view class="token-card__time">撤销时间：{{item.revokedAtText}}</view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{createdToken}}" class="sheet-mask">
+    <view class="sheet-card">
+      <view class="sheet-card__mark">✓</view>
+      <view class="sheet-card__title">永久令牌已创建</view>
+      <view class="sheet-card__description">请像保护密码一样保护它。页面关闭后仍可从令牌详情重新复制。</view>
+      <text class="credential-box" selectable user-select>{{createdToken.credential}}</text>
+      <button id="copy-created-token-button" class="primary-button" bindtap="onCopyCreatedToken">复制令牌</button>
+      <button id="copy-created-skill-button" class="secondary-button" bindtap="onCopyCreatedSkill">复制 Skill</button>
+      <button class="text-button" bindtap="onFinishCreatedToken">完成</button>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedToken}}" class="sheet-mask">
+    <view class="sheet-card sheet-card--detail">
+      <view class="detail-heading">
+        <view>
+          <view class="sheet-card__title">{{selectedToken.name}}</view>
+          <view class="token-card__meta">永久 · {{selectedToken.credentialHint}}</view>
+        </view>
+        <button class="close-button" bindtap="onCloseTokenDetail">×</button>
+      </view>
+
+      <view class="detail-grid">
+        <view><text>状态</text><text class="detail-grid__value">{{selectedToken.status === 'active' ? '使用中' : '已撤销'}}</text></view>
+        <view><text>创建时间</text><text class="detail-grid__value">{{selectedToken.createdAtText}}</text></view>
+        <view><text>最近访问</text><text class="detail-grid__value">{{selectedToken.lastUsedText}}</text></view>
+      </view>
+
+      <view wx:if="{{selectedToken.status === 'active'}}" class="detail-actions">
+        <button id="copy-token-button" class="secondary-button" bindtap="onCopyToken">复制令牌</button>
+        <button id="copy-skill-button" class="secondary-button" bindtap="onCopySkill">复制 Skill</button>
+      </view>
+
+      <view class="history-heading">最近 20 次访问</view>
+      <view wx:if="{{historyLoading}}" class="history-state">正在更新访问历史…</view>
+      <view wx:elif="{{accesses.length === 0}}" class="history-state">这个令牌还没有调用过接口</view>
+      <view wx:else class="history-list">
+        <view wx:for="{{accesses}}" wx:key="id" class="history-item">
+          <view class="history-item__top">
+            <view class="history-item__action">{{item.actionText}}</view>
+            <view class="history-result history-result--{{item.resultTone}}">{{item.resultText}}</view>
+          </view>
+          <view class="history-item__context">{{item.contextText}}</view>
+          <view class="history-item__time">{{item.accessedAtText}}</view>
+        </view>
+      </view>
+
+      <button
+        wx:if="{{selectedToken.status === 'active'}}"
+        id="revoke-token-button"
+        class="danger-button"
+        loading="{{processing}}"
+        disabled="{{processing}}"
+        bindtap="onRevokeToken"
+      >永久撤销这个令牌</button>
+    </view>
+  </view>
+</view>

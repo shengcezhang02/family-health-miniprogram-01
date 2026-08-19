@@ -1,0 +1,38 @@
+{
+  "CreateIndexes": [
+    {
+      "IndexName": "owner_creation_request_unique",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "ownerUserId",
+            "Direction": "1"
+          },
+          {
+            "Name": "creationRequestId",
+            "Direction": "1"
+          }
+        ],
+        "MgoIsUnique": true,
+        "MgoIsSparse": false
+      }
+    },
+    {
+      "IndexName": "owner_created",
+      "MgoKeySchema": {
+        "MgoIndexKeys": [
+          {
+            "Name": "ownerUserId",
+            "Direction": "1"
+          },
+          {
+            "Name": "createdAt",
+            "Direction": "-1"
+          }
+        ],
+        "MgoIsUnique": false,
+        "MgoIsSparse": false
+      }
+    }
+  ]
+}
