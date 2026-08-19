@@ -5,6 +5,7 @@ const {
   createExternalAccessManagement,
   createExternalBusinessRouter,
   createExternalReadServices,
+  createExternalWriteServices,
   createExternalTokenAuthenticator,
   createExternalTokenSecurity,
   isExternalAccessEnabled,
@@ -22,8 +23,17 @@ const {
   createCloudExternalReadStore,
 } = require("./create-cloud-external-read-store");
 const {
+  getSystemTemplate,
   listSystemTemplates,
 } = require("./external-system-templates");
+const { createHealthItemApi } = require("./create-health-item-api");
+const {
+  createCloudHealthItemStore,
+} = require("./create-cloud-health-item-store");
+const { createTemplateApi } = require("./create-template-api");
+const {
+  createCloudTemplateStore,
+} = require("./create-cloud-template-store");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -34,6 +44,8 @@ const db = cloud.database({
 });
 const tokenStore = createCloudExternalAccessStore(db);
 const externalReadStore = createCloudExternalReadStore(db);
+const healthItemStore = createCloudHealthItemStore(db);
+const templateStore = createCloudTemplateStore(db);
 
 function createStableTokenId({ ownerUserId, requestId }) {
   return createHash("sha256")
@@ -84,9 +96,77 @@ const readServices = createExternalReadServices({
   readStore: externalReadStore,
   listSystemTemplates,
 });
+const writeServices = createExternalWriteServices({
+  createHealthItemApiForActor: (actor) =>
+    createHealthItemApi({
+      getCaller: async () => ({ _id: actor.userId }),
+      healthItemStore,
+      getSystemTemplate,
+      createRecordId: ({ callerUserId, requestId }) =>
+        `record-${createHash("sha256")
+          .update(`${callerUserId}\n${requestId}`)
+          .digest("hex")
+          .slice(0, 32)}`,
+      createReminderId: ({ callerUserId, requestId }) =>
+        `reminder-${createHash("sha256")
+          .update(`${callerUserId}\n${requestId}`)
+          .digest("hex")
+          .slice(0, 32)}`,
+      createRuleId: ({ callerUserId, requestId }) =>
+        `rule-${createHash("sha256")
+          .update(`${callerUserId}\n${requestId}`)
+          .digest("hex")
+          .slice(0, 32)}`,
+      createCheckInRecordId: ({ reminderId }) =>
+        `record-${createHash("sha256")
+          .update(`check-in\n${reminderId}`)
+          .digest("hex")
+          .slice(0, 32)}`,
+      getMutationContext: async () => ({
+        via: "external_api",
+        externalTokenId: actor.externalTokenId,
+      }),
+      now: () => new Date(),
+      reportError: (error) => {
+        console.error("external health item write failed", {
+          name: error?.name,
+          code: error?.code,
+        });
+      },
+    }),
+  createTemplateApiForActor: (actor) =>
+    createTemplateApi({
+      getCaller: async () => ({ _id: actor.userId }),
+      templateStore,
+      createId: (kind, { callerUserId, requestId }) =>
+        `${kind}-${createHash("sha256")
+          .update(`${callerUserId}\n${requestId}\n${kind}`)
+          .digest("hex")
+          .slice(0, 24)}`,
+      getMutationContext: async () => ({
+        via: "external_api",
+        externalTokenId: actor.externalTokenId,
+      }),
+      now: () => new Date(),
+      reportError: (error) => {
+        console.error("external template write failed", {
+          name: error?.name,
+          code: error?.code,
+        });
+      },
+    }),
+  getSystemTemplate,
+  systemTemplateStore: externalReadStore,
+});
 const router = createExternalBusinessRouter({
   isEnabled: () => isExternalAccessEnabled(process.env),
-  services: readServices,
+  services: {
+    context: readServices.context,
+    "healthItems:read": readServices.healthItems,
+    "healthItems:write": writeServices.healthItems,
+    "templates:read": readServices.templates,
+    "templates:write": writeServices.templates,
+  },
 });
 
 const api = createExternalAccessApi({

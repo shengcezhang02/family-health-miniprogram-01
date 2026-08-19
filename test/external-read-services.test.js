@@ -20,6 +20,7 @@ test("getContext 只返回令牌所有者有效家庭的成员和模板白名单
             family: {
               _id: "family-1",
               name: "测试家庭",
+              revision: 7,
               systemTemplateSettings: [],
               storageUsedBytes: 12345,
             },
@@ -125,6 +126,7 @@ test("getContext 只返回令牌所有者有效家庭的成员和模板白名单
         {
           id: "family-1",
           name: "测试家庭",
+          revision: 7,
           role: "admin",
           externalAccessReady: true,
           members: [
@@ -242,6 +244,7 @@ test("getContext 无需逐人确认即可返回同家庭成员和模板", async 
     {
       id: "family-1",
       name: "测试家庭",
+      revision: 1,
       role: "admin",
       externalAccessReady: true,
       members: [
@@ -292,6 +295,7 @@ test("listTemplates 只读取令牌所有者指定家庭的模板", async () => 
           family: {
             _id: "family-1",
             name: "测试家庭",
+            revision: 4,
             systemTemplateSettings: [
               {
                 templateId: "sys_temperature",
@@ -340,6 +344,7 @@ test("listTemplates 只读取令牌所有者指定家庭的模板", async () => 
     requestId: "request-templates",
     data: {
       familyId: "family-1",
+      familyRevision: 4,
       templates: [
         {
           id: "sys_temperature",
@@ -401,6 +406,7 @@ test("listTemplates 只校验令牌所有者仍是家庭成员", async () => {
     requestId: "request-templates-not-ready",
     data: {
       familyId: "family-1",
+      familyRevision: 1,
       templates: [
         {
           id: "template-private",

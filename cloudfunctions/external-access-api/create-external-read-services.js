@@ -409,6 +409,9 @@ function createExternalReadServices({
             return {
               id: context.family._id,
               name: context.family.name,
+              revision: Number.isInteger(context.family.revision)
+                ? context.family.revision
+                : 1,
               role: context.callerMembership.role,
               externalAccessReady: true,
               members: toPublicMembers(context, actor.userId),
@@ -452,6 +455,9 @@ function createExternalReadServices({
         requestId: request.requestId,
         data: {
           familyId: context.family._id,
+          familyRevision: Number.isInteger(context.family.revision)
+            ? context.family.revision
+            : 1,
           templates: toPublicTemplates(context, listSystemTemplates),
         },
       };

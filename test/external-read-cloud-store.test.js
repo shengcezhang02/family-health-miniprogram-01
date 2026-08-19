@@ -239,3 +239,116 @@ test("CloudBase 只给当前用户的有效家庭成员关系写入告知确认"
     undefined,
   );
 });
+
+test("CloudBase 在事务内按家庭版本更新系统模板设置", async () => {
+  const db = createInMemoryCloudDatabase({
+    families: [
+      {
+        _id: "family-1",
+        name: "测试家庭",
+        revision: 3,
+        systemTemplateSettings: [
+          {
+            templateId: "sys_temperature",
+            status: "active",
+            sortOrder: 10,
+          },
+        ],
+      },
+    ],
+    family_memberships: [
+      {
+        _id: "membership-1",
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+  });
+  const store = createCloudExternalReadStore(db);
+  const updatedAt = new Date("2026-08-19T06:00:00.000Z");
+
+  const result = await store.updateSystemTemplateSettings({
+    actorUserId: "user-1",
+    familyId: "family-1",
+    systemTemplateId: "sys_temperature",
+    expectedRevision: 3,
+    status: "inactive",
+    sortOrder: 25,
+    updatedAt,
+  });
+
+  assert.deepEqual(result, {
+    outcome: "updated",
+    familyRevision: 4,
+    setting: {
+      templateId: "sys_temperature",
+      status: "inactive",
+      sortOrder: 25,
+    },
+  });
+  assert.deepEqual(
+    db.read("families", "family-1").systemTemplateSettings,
+    [
+      {
+        templateId: "sys_temperature",
+        status: "inactive",
+        sortOrder: 25,
+      },
+    ],
+  );
+  assert.equal(db.read("families", "family-1").revision, 4);
+  assert.equal(
+    db.read("families", "family-1").updatedByUserId,
+    "user-1",
+  );
+});
+
+test("CloudBase 系统模板设置拒绝非成员和过期家庭版本", async () => {
+  const db = createInMemoryCloudDatabase({
+    families: [
+      {
+        _id: "family-1",
+        revision: 2,
+        systemTemplateSettings: [],
+      },
+    ],
+    family_memberships: [
+      {
+        _id: "membership-1",
+        familyId: "family-1",
+        userId: "user-1",
+        status: "active",
+      },
+    ],
+  });
+  const store = createCloudExternalReadStore(db);
+
+  assert.equal(
+    (
+      await store.updateSystemTemplateSettings({
+        actorUserId: "user-other",
+        familyId: "family-1",
+        systemTemplateId: "sys_temperature",
+        expectedRevision: 2,
+        status: "active",
+        sortOrder: 10,
+      })
+    ).outcome,
+    "permission-denied",
+  );
+  assert.equal(
+    (
+      await store.updateSystemTemplateSettings({
+        actorUserId: "user-1",
+        familyId: "family-1",
+        systemTemplateId: "sys_temperature",
+        expectedRevision: 1,
+        status: "active",
+        sortOrder: 10,
+      })
+    ).outcome,
+    "revision-conflict",
+  );
+  assert.equal(db.read("families", "family-1").revision, 2);
+});

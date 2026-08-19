@@ -62,6 +62,7 @@ function createInMemoryTemplateStore({
       fields,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = templatesById.get(templateId);
 
@@ -89,6 +90,7 @@ function createInMemoryTemplateStore({
         colorKey,
         fields: structuredClone(fields),
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };
@@ -112,6 +114,7 @@ function createInMemoryTemplateStore({
       status,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = templatesById.get(templateId);
 
@@ -131,6 +134,7 @@ function createInMemoryTemplateStore({
         ...existing,
         status,
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };

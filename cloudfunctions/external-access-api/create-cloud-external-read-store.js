@@ -121,6 +121,79 @@ function createCloudExternalReadStore(db) {
   }
 
   return {
+    async updateSystemTemplateSettings({
+      actorUserId,
+      familyId,
+      systemTemplateId,
+      expectedRevision,
+      status,
+      sortOrder,
+      updatedAt = new Date(),
+    }) {
+      return db.runTransaction(async (transaction) => {
+        const transactionMemberships = transaction.collection(
+          "family_memberships",
+        );
+        const membershipResult = await transactionMemberships
+          .where({
+            familyId,
+            userId: actorUserId,
+            status: "active",
+          })
+          .limit(1)
+          .get();
+
+        if (!membershipResult.data[0]) {
+          return { outcome: "permission-denied" };
+        }
+
+        const transactionFamilies = transaction.collection("families");
+        const familyResult = await transactionFamilies.doc(familyId).get();
+        const family = familyResult.data ?? null;
+
+        if (!family) {
+          return { outcome: "not-found" };
+        }
+        if (family.revision !== expectedRevision) {
+          return { outcome: "revision-conflict" };
+        }
+
+        const setting = {
+          templateId: systemTemplateId,
+          status,
+          sortOrder,
+        };
+        const existingSettings = Array.isArray(
+          family.systemTemplateSettings,
+        )
+          ? family.systemTemplateSettings
+          : [];
+        const nextSettings = existingSettings.filter(
+          (candidate) =>
+            candidate?.templateId !== systemTemplateId &&
+            candidate?.id !== systemTemplateId,
+        );
+        nextSettings.push(setting);
+        const nextRevision = family.revision + 1;
+
+        await transactionFamilies.doc(familyId).set({
+          data: withoutDocumentId({
+            ...family,
+            systemTemplateSettings: nextSettings,
+            revision: nextRevision,
+            updatedAt,
+            updatedByUserId: actorUserId,
+          }),
+        });
+
+        return {
+          outcome: "updated",
+          familyRevision: nextRevision,
+          setting,
+        };
+      });
+    },
+
     async acceptExternalAccessNotice({
       userId,
       noticeVersion,

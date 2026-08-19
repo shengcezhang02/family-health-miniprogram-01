@@ -41,7 +41,9 @@ function createExternalBusinessRouter({
         );
       }
 
-      const service = services[definition.service];
+      const service =
+        services[`${definition.service}:${definition.mode}`] ||
+        services[definition.service];
 
       if (typeof service !== "function") {
         return errorResult(

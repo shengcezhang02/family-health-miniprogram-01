@@ -25,11 +25,15 @@ const {
 const {
   createExternalReadServices,
 } = require("./create-external-read-services");
+const {
+  createExternalWriteServices,
+} = require("./create-external-write-services");
 
 module.exports = {
   createExternalAccessManagement,
   createExternalBusinessRouter,
   createExternalReadServices,
+  createExternalWriteServices,
   createExternalTokenAuthenticator,
   createExternalTokenSecurity,
   EXTERNAL_ACCESS_ACTIONS,

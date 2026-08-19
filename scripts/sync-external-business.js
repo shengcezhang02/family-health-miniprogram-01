@@ -19,6 +19,7 @@ const copiedFiles = new Map([
   ["create-external-access-management.js", "create-external-access-management.js"],
   ["create-external-business-router.js", "create-external-business-router.js"],
   ["create-external-read-services.js", "create-external-read-services.js"],
+  ["create-external-write-services.js", "create-external-write-services.js"],
   ["create-external-token-authenticator.js", "create-external-token-authenticator.js"],
   ["create-external-token-security.js", "create-external-token-security.js"],
   ["external-access-feature.js", "external-access-feature.js"],
@@ -41,6 +42,31 @@ for (const [sourceFileName, targetFileName] of copiedFiles) {
   }
 }
 
+const businessCopiedFiles = [
+  ["health-item-api", "create-health-item-api.js"],
+  ["health-item-api", "create-cloud-health-item-store.js"],
+  ["template-api", "create-template-api.js"],
+  ["template-api", "create-cloud-template-store.js"],
+  ["template-api", "template-history.js"],
+];
+
+for (const [cloudfunction, fileName] of businessCopiedFiles) {
+  const sourcePath = join(
+    repositoryRoot,
+    "cloudfunctions",
+    cloudfunction,
+    "src",
+    fileName,
+  );
+  const targetPath = join(targetDirectory, fileName);
+
+  copyFileSync(sourcePath, targetPath);
+
+  if (!readFileSync(sourcePath).equals(readFileSync(targetPath))) {
+    throw new Error(`Failed to synchronize ${fileName}`);
+  }
+}
+
 const systemTemplateSource = join(
   repositoryRoot,
   "cloudfunctions",
@@ -53,6 +79,11 @@ const systemTemplateTarget = join(
   "external-system-templates.js",
 );
 copyFileSync(systemTemplateSource, systemTemplateTarget);
+const writeSystemTemplateTarget = join(
+  targetDirectory,
+  "system-templates.js",
+);
+copyFileSync(systemTemplateSource, writeSystemTemplateTarget);
 
 if (
   !readFileSync(systemTemplateSource).equals(
@@ -62,6 +93,14 @@ if (
   throw new Error("Failed to synchronize system templates");
 }
 
+if (
+  !readFileSync(systemTemplateSource).equals(
+    readFileSync(writeSystemTemplateTarget),
+  )
+) {
+  throw new Error("Failed to synchronize write system templates");
+}
+
 console.log(
-  `Synchronized ${copiedFiles.size} shared business files and system templates into external-access-api`,
+  `Synchronized ${copiedFiles.size + businessCopiedFiles.length} shared business files and system templates into external-access-api`,
 );

@@ -47,7 +47,7 @@ test("Skill 草案拒绝明文 HTTP、凭据 URL 和非 fhp 令牌", () => {
   );
 });
 
-test("AI-M2 Skill 给出可执行的上下文、模板和健康事项分页示例", () => {
+test("AI-M3 Skill 给出读取、写入、软删除和模板管理示例", () => {
   const skill = renderExternalAccessSkillDraft({
     baseUrl: "https://family-health.example.com",
     token: "fhp_test.secret-placeholder",
@@ -64,6 +64,25 @@ test("AI-M2 Skill 给出可执行的上下文、模板和健康事项分页示�
   assert.match(skill, /令牌所有者仍是该家庭的有效成员/);
   assert.match(skill, /同一家庭所有成员/);
   assert.doesNotMatch(skill, /成员未确认|externalAccessReady=false/);
-  assert.match(skill, /AI-M3/);
-  assert.match(skill, /SERVICE_NOT_READY/);
+  for (const action of [
+    "createRecord",
+    "createReminder",
+    "createRecurringRule",
+    "updateHealthItem",
+    "checkInReminder",
+    "pauseRule",
+    "resumeRule",
+    "softDeleteItem",
+    "createCustomTemplate",
+    "updateCustomTemplate",
+    "setTemplateStatus",
+    "copySystemTemplate",
+    "updateSystemTemplateSettings",
+  ]) {
+    assert.match(skill, new RegExp(`\\b${action}\\b`), action);
+  }
+  assert.match(skill, /expectedRevision/);
+  assert.match(skill, /familyRevision/);
+  assert.match(skill, /软删除/);
+  assert.doesNotMatch(skill, /尚未开放|SERVICE_NOT_READY/);
 });

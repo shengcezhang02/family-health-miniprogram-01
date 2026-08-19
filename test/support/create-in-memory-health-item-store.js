@@ -51,6 +51,7 @@ function createInMemoryHealthItemStore({
     updatedByUserId,
     updatedAt,
     shouldRestore,
+    mutationAudit = {},
   }) {
     const existing = recordsById.get(recordId);
 
@@ -108,6 +109,7 @@ function createInMemoryHealthItemStore({
             deletedByUserId: updatedByUserId,
           }),
       updatedByUserId,
+      ...mutationAudit,
       updatedAt,
       revision: existing.revision + 1,
     };
@@ -131,6 +133,7 @@ function createInMemoryHealthItemStore({
           ...reminderWithoutCompletion,
           status: "pending",
           updatedByUserId,
+          ...mutationAudit,
           updatedAt,
           revision: reminder.revision + 1,
         });
@@ -254,6 +257,7 @@ function createInMemoryHealthItemStore({
       dailyTimes,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = recurringRulesById.get(ruleId);
 
@@ -283,6 +287,7 @@ function createInMemoryHealthItemStore({
         repeat: structuredClone(repeat),
         dailyTimes: structuredClone(dailyTimes),
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };
@@ -302,6 +307,7 @@ function createInMemoryHealthItemStore({
       nextStatus,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = recurringRulesById.get(ruleId);
 
@@ -344,6 +350,7 @@ function createInMemoryHealthItemStore({
             }
           : {}),
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };
@@ -362,6 +369,7 @@ function createInMemoryHealthItemStore({
       updatedByUserId,
       updatedAt,
       shouldRestore,
+      mutationAudit = {},
     }) {
       const existing = recurringRulesById.get(ruleId);
 
@@ -395,6 +403,7 @@ function createInMemoryHealthItemStore({
               deletedByUserId: updatedByUserId,
             }),
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };
@@ -410,6 +419,67 @@ function createInMemoryHealthItemStore({
       return structuredClone(remindersById.get(reminderId) ?? null);
     },
 
+    async changeReminderDeletionState({
+      reminderId,
+      familyId,
+      expectedRevision,
+      updatedByUserId,
+      updatedAt,
+      shouldRestore,
+      mutationAudit = {},
+    }) {
+      const existing = remindersById.get(reminderId);
+      const membership = [...membershipsById.values()].find(
+        (candidate) =>
+          candidate.familyId === familyId &&
+          candidate.userId === updatedByUserId &&
+          candidate.status === "active",
+      );
+
+      if (!membership) {
+        return { outcome: "permission-denied" };
+      }
+
+      if (
+        !existing ||
+        existing.familyId !== familyId ||
+        (shouldRestore
+          ? !existing.deletedAt
+          : Boolean(existing.deletedAt))
+      ) {
+        return { outcome: "not-found" };
+      }
+
+      if (existing.revision !== expectedRevision) {
+        return { outcome: "revision-conflict" };
+      }
+
+      const {
+        deletedAt,
+        deletedByUserId,
+        ...reminderWithoutDeletion
+      } = existing;
+      const updated = {
+        ...reminderWithoutDeletion,
+        ...(!shouldRestore
+          ? {
+              deletedAt: updatedAt,
+              deletedByUserId: updatedByUserId,
+            }
+          : {}),
+        updatedByUserId,
+        ...mutationAudit,
+        updatedAt,
+        revision: existing.revision + 1,
+      };
+      remindersById.set(reminderId, updated);
+
+      return {
+        outcome: "updated",
+        reminder: structuredClone(updated),
+      };
+    },
+
     async checkInReminder({
       reminderId,
       familyId,
@@ -417,6 +487,7 @@ function createInMemoryHealthItemStore({
       record,
       updatedByUserId,
       completedAt,
+      mutationAudit = {},
     }) {
       const reminder = remindersById.get(reminderId);
       const callerMembership = [...membershipsById.values()].find(
@@ -474,6 +545,7 @@ function createInMemoryHealthItemStore({
         completedAt,
         linkedRecordId: record._id,
         updatedByUserId,
+        ...mutationAudit,
         updatedAt: completedAt,
         revision: reminder.revision + 1,
       };
@@ -496,6 +568,7 @@ function createInMemoryHealthItemStore({
       notificationTimes,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = remindersById.get(reminderId);
 
@@ -533,6 +606,7 @@ function createInMemoryHealthItemStore({
           ? { nextNotificationAt: notificationTimes[0] }
           : {}),
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };
@@ -561,6 +635,7 @@ function createInMemoryHealthItemStore({
       occurredAt,
       updatedByUserId,
       updatedAt,
+      mutationAudit = {},
     }) {
       const existing = recordsById.get(recordId);
 
@@ -587,6 +662,7 @@ function createInMemoryHealthItemStore({
         ...(remark ? { remark } : {}),
         occurredAt,
         updatedByUserId,
+        ...mutationAudit,
         updatedAt,
         revision: existing.revision + 1,
       };

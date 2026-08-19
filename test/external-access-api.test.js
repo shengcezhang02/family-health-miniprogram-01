@@ -172,6 +172,51 @@ test("有效 Bearer 调用业务后只记录不含健康值的访问摘要", asy
   assert.equal(JSON.stringify(events).includes("secret-placeholder"), false);
 });
 
+test("外部写入业务错误映射为稳定的 HTTP 状态码", async () => {
+  const cases = [
+    ["INVALID_VALUES", 422],
+    ["REVISION_CONFLICT", 409],
+    ["REQUEST_CONFLICT", 409],
+    ["TEMPLATE_NOT_AVAILABLE", 404],
+  ];
+
+  for (const [code, expectedStatus] of cases) {
+    const api = createExternalAccessApi({
+      isEnabled: () => true,
+      authenticateAccessToken: async () => ({
+        userId: "user-write-error",
+        externalTokenId: "token-write-error",
+        permissionPreset: "experimental_full_family_health_v1",
+      }),
+      dispatchBusinessAction: async (request) => ({
+        ok: false,
+        requestId: request.requestId,
+        error: { code, message: "安全错误说明" },
+      }),
+      recordAccess: async () => ({ outcome: "recorded" }),
+      createEventId: () => `event-${code}`,
+      now: () => new Date("2026-08-19T03:20:00.000Z"),
+    });
+
+    const response = await api.handle({
+      httpMethod: "POST",
+      path: "/v1/action",
+      headers: {
+        "x-forwarded-proto": "https",
+        authorization: "Bearer fhp_hidden.hidden",
+      },
+      body: JSON.stringify({
+        action: "updateHealthItem",
+        requestId: `request-${code}`,
+        payload: {},
+      }),
+    });
+
+    assert.equal(response.statusCode, expectedStatus, code);
+    assert.equal(parseResponse(response).error.code, code);
+  }
+});
+
 test("有效令牌遇到业务异常时记录脱敏失败并返回统一错误", async () => {
   const events = [];
   const reports = [];

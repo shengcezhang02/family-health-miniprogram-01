@@ -110,3 +110,36 @@ test("尚未接入的业务领域返回安全错误而不是绕过规则自行�
   assert.equal(result.ok, false);
   assert.equal(result.error.code, "SERVICE_NOT_READY");
 });
+
+test("同一业务领域按读写模式路由到不同服务", async () => {
+  const calls = [];
+  const router = createExternalBusinessRouter({
+    isEnabled: () => true,
+    services: {
+      "healthItems:read": async (request) => {
+        calls.push(`read:${request.action}`);
+        return { ok: true, requestId: request.requestId, data: {} };
+      },
+      "healthItems:write": async (request) => {
+        calls.push(`write:${request.action}`);
+        return { ok: true, requestId: request.requestId, data: {} };
+      },
+    },
+  });
+
+  await router.execute({
+    action: "listHealthItems",
+    requestId: "request-read",
+    payload: { familyId: "family-1", itemType: "record" },
+  });
+  await router.execute({
+    action: "createRecord",
+    requestId: "request-write",
+    payload: { familyId: "family-1" },
+  });
+
+  assert.deepEqual(calls, [
+    "read:listHealthItems",
+    "write:createRecord",
+  ]);
+});
